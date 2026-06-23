@@ -1,20 +1,9 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import EntryEditModal, { STATUS_OPTIONS } from './EntryEditModal'
+import type { EditableEntry } from './EntryEditModal'
 
-interface Entry {
-  id: string
-  title: string
-  year: string | null
-  poster_url: string | null
-  status: string
-}
-
-const STATUS_LABELS: Record<string, string> = {
-  plan_to_watch: 'Plan to Watch',
-  watching: 'Watching',
-  completed: 'Completed',
-  dropped: 'Dropped',
-}
+const STATUS_LABELS = Object.fromEntries(STATUS_OPTIONS.map(o => [o.value, o.label]))
 
 interface Props {
   userId: string
@@ -22,14 +11,15 @@ interface Props {
 }
 
 export default function EntryList({ userId, refreshKey }: Props) {
-  const [entries, setEntries] = useState<Entry[]>([])
+  const [entries, setEntries] = useState<EditableEntry[]>([])
   const [loading, setLoading] = useState(true)
+  const [editing, setEditing] = useState<EditableEntry | null>(null)
 
   useEffect(() => {
     setLoading(true)
     supabase
       .from('entries')
-      .select('id, title, year, poster_url, status')
+      .select('id, title, year, poster_url, status, rating')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .then(({ data }) => {
@@ -37,6 +27,12 @@ export default function EntryList({ userId, refreshKey }: Props) {
         setLoading(false)
       })
   }, [userId, refreshKey])
+
+  function handleSaved(updated: Pick<EditableEntry, 'id' | 'status' | 'rating'>) {
+    setEntries(prev =>
+      prev.map(e => e.id === updated.id ? { ...e, ...updated } : e)
+    )
+  }
 
   if (loading) return null
 
@@ -52,50 +48,76 @@ export default function EntryList({ userId, refreshKey }: Props) {
   }
 
   return (
-    <div
-      className="grid gap-4 px-6 pb-10"
-      style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))' }}
-    >
-      {entries.map(entry => (
-        <div key={entry.id} className="flex flex-col gap-2">
-          {entry.poster_url ? (
-            <img
-              src={entry.poster_url}
-              alt={entry.title}
-              className="w-full rounded object-cover"
-              style={{ aspectRatio: '2/3' }}
-            />
-          ) : (
-            <div
-              className="w-full rounded"
-              style={{ aspectRatio: '2/3', background: 'var(--color-surface)' }}
-            />
-          )}
-          <div className="flex flex-col gap-1">
-            <span
-              className="text-sm font-medium leading-tight line-clamp-2"
-              style={{ color: 'var(--color-text)' }}
-            >
-              {entry.title}
-            </span>
-            {entry.year && (
-              <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                {entry.year}
-              </span>
+    <>
+      <div
+        className="grid gap-4 px-6 pb-10"
+        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))' }}
+      >
+        {entries.map(entry => (
+          <button
+            key={entry.id}
+            onClick={() => setEditing(entry)}
+            className="flex flex-col gap-2 text-left cursor-pointer hover:opacity-80"
+            style={{ background: 'none', border: 'none', padding: 0 }}
+          >
+            {entry.poster_url ? (
+              <img
+                src={entry.poster_url}
+                alt={entry.title}
+                className="w-full rounded object-cover"
+                style={{ aspectRatio: '2/3' }}
+              />
+            ) : (
+              <div
+                className="w-full rounded"
+                style={{ aspectRatio: '2/3', background: 'var(--color-surface)' }}
+              />
             )}
-            <span
-              className="text-xs rounded px-1.5 py-0.5 self-start"
-              style={{
-                background: 'var(--color-surface)',
-                color: 'var(--color-text-muted)',
-                border: '1px solid var(--color-border)',
-              }}
-            >
-              {STATUS_LABELS[entry.status] ?? entry.status}
-            </span>
-          </div>
-        </div>
-      ))}
-    </div>
+            <div className="flex flex-col gap-1">
+              <span
+                className="text-sm font-medium leading-tight line-clamp-2"
+                style={{ color: 'var(--color-text)' }}
+              >
+                {entry.title}
+              </span>
+              {entry.year && (
+                <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                  {entry.year}
+                </span>
+              )}
+              <span
+                className="text-xs rounded px-1.5 py-0.5 self-start"
+                style={{
+                  background: 'var(--color-surface)',
+                  color: 'var(--color-text-muted)',
+                  border: '1px solid var(--color-border)',
+                }}
+              >
+                {STATUS_LABELS[entry.status] ?? entry.status}
+              </span>
+              {entry.rating !== null && (
+                <span
+                  className="text-xs font-semibold"
+                  style={{ color: 'var(--color-gold)' }}
+                >
+                  {entry.rating}/10
+                </span>
+              )}
+            </div>
+          </button>
+        ))}
+      </div>
+
+      {editing && (
+        <EntryEditModal
+          entry={editing}
+          onClose={() => setEditing(null)}
+          onSaved={updated => {
+            handleSaved(updated)
+            setEditing(null)
+          }}
+        />
+      )}
+    </>
   )
 }
