@@ -4,13 +4,14 @@ import { supabase } from '../lib/supabase'
 const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY as string
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w92'
 
-type Tab = 'movie' | 'tv_show' | 'kdrama' | 'anime'
+type Tab = 'movie' | 'tv_show' | 'kdrama' | 'anime' | 'book'
 
 const TABS: { value: Tab; label: string }[] = [
   { value: 'movie',   label: 'Movie' },
   { value: 'tv_show', label: 'TV Show' },
   { value: 'kdrama',  label: 'Kdrama' },
   { value: 'anime',   label: 'Anime' },
+  { value: 'book',    label: 'Books' },
 ]
 
 // TMDB shapes
@@ -65,6 +66,23 @@ async function searchAniList(search: string): Promise<AniListResult[]> {
   return json?.data?.Page?.media ?? []
 }
 
+// Open Library shape
+interface OpenLibraryDoc {
+  key: string
+  title: string
+  author_name?: string[]
+  first_publish_year?: number
+  cover_i?: number
+}
+
+async function searchOpenLibrary(query: string): Promise<OpenLibraryDoc[]> {
+  const res = await fetch(
+    `https://openlibrary.org/search.json?q=${encodeURIComponent(query)}&limit=10&fields=key,title,author_name,first_publish_year,cover_i`
+  )
+  const json = await res.json()
+  return json?.docs ?? []
+}
+
 interface Props {
   userId: string
   onSaved: () => void
@@ -73,9 +91,9 @@ interface Props {
 export default function MediaSearch({ userId, onSaved }: Props) {
   const [tab, setTab] = useState<Tab>('movie')
   const [query, setQuery] = useState('')
-  const [results, setResults] = useState<TmdbResult[] | AniListResult[]>([])
+  const [results, setResults] = useState<TmdbResult[] | AniListResult[] | OpenLibraryDoc[]>([])
   const [searching, setSearching] = useState(false)
-  const [saved, setSaved] = useState<number | null>(null)
+  const [saved, setSaved] = useState<number | string | null>(null)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -91,6 +109,8 @@ export default function MediaSearch({ userId, onSaved }: Props) {
       try {
         if (tab === 'anime') {
           setResults(await searchAniList(query))
+        } else if (tab === 'book') {
+          setResults(await searchOpenLibrary(query))
         } else {
           const endpoint = tab === 'movie' ? 'search/movie' : 'search/tv'
           const res = await fetch(
@@ -115,7 +135,7 @@ export default function MediaSearch({ userId, onSaved }: Props) {
     setSaveError('')
   }
 
-  async function handleSelect(result: TmdbResult | AniListResult) {
+  async function handleSelect(result: TmdbResult | AniListResult | OpenLibraryDoc) {
     if (saving) return
     setSaving(true)
     setSaved(null)
@@ -126,6 +146,7 @@ export default function MediaSearch({ userId, onSaved }: Props) {
     let poster_url: string | null
     let source_api: string
     let source_id: string
+    let metadata: Record<string, unknown> | undefined
 
     if (tab === 'anime') {
       const a = result as AniListResult
@@ -134,6 +155,15 @@ export default function MediaSearch({ userId, onSaved }: Props) {
       poster_url = a.coverImage.large ?? a.coverImage.medium ?? null
       source_api = 'anilist'
       source_id  = String(a.id)
+    } else if (tab === 'book') {
+      const b = result as OpenLibraryDoc
+      const author = b.author_name?.[0] ?? null
+      title      = b.title
+      year       = b.first_publish_year ? String(b.first_publish_year) : null
+      poster_url = b.cover_i ? `https://covers.openlibrary.org/b/id/${b.cover_i}-L.jpg` : null
+      source_api = 'openlibrary'
+      source_id  = b.key
+      metadata   = author ? { author } : undefined
     } else {
       const t = result as TmdbResult
       title      = isTV(t) ? t.name : t.title
@@ -153,13 +183,14 @@ export default function MediaSearch({ userId, onSaved }: Props) {
       status: 'plan_to_watch',
       source_api,
       source_id,
+      ...(metadata ? { metadata } : {}),
     })
 
     setSaving(false)
     if (error) {
       setSaveError(error.message)
     } else {
-      setSaved(result.id)
+      setSaved(tab === 'book' ? (result as OpenLibraryDoc).key : (result as TmdbResult | AniListResult).id)
       setQuery('')
       setResults([])
       onSaved()
@@ -169,6 +200,7 @@ export default function MediaSearch({ userId, onSaved }: Props) {
   const placeholder =
     tab === 'movie' ? 'Search for a movie…' :
     tab === 'anime' ? 'Search for an anime…' :
+    tab === 'book'  ? 'Search for a book…' :
     'Search for a TV show…'
 
   return (
@@ -230,19 +262,36 @@ export default function MediaSearch({ userId, onSaved }: Props) {
       {results.length > 0 && (
         <ul className="flex flex-col gap-2">
           {results.map(result => {
-            const isAnime = tab === 'anime'
-            const a = result as AniListResult
-            const t = result as TmdbResult
-            const title     = isAnime ? (a.title.english || a.title.romaji) : (isTV(t) ? t.name : t.title)
-            const year      = isAnime ? a.startDate.year : null
-            const date      = isAnime ? null : (isTV(t) ? t.first_air_date : t.release_date)
-            const posterSrc = isAnime
-              ? (a.coverImage.large ?? a.coverImage.medium ?? null)
-              : (t.poster_path ? `${TMDB_IMAGE_BASE}${t.poster_path}` : null)
-            const displayYear = isAnime ? (year ? String(year) : null) : (date ? date.slice(0, 4) : null)
+            let rowKey: string
+            let title: string
+            let displayYear: string | null
+            let posterSrc: string | null
+            let subtitle: string | null = null
+
+            if (tab === 'book') {
+              const b = result as OpenLibraryDoc
+              rowKey      = b.key
+              title       = b.title
+              displayYear = b.first_publish_year ? String(b.first_publish_year) : null
+              posterSrc   = b.cover_i ? `https://covers.openlibrary.org/b/id/${b.cover_i}-L.jpg` : null
+              subtitle    = b.author_name?.[0] ?? null
+            } else if (tab === 'anime') {
+              const a = result as AniListResult
+              rowKey      = String(a.id)
+              title       = a.title.english || a.title.romaji
+              displayYear = a.startDate.year ? String(a.startDate.year) : null
+              posterSrc   = a.coverImage.large ?? a.coverImage.medium ?? null
+            } else {
+              const t = result as TmdbResult
+              rowKey      = String(t.id)
+              title       = isTV(t) ? t.name : t.title
+              const date  = isTV(t) ? t.first_air_date : t.release_date
+              displayYear = date ? date.slice(0, 4) : null
+              posterSrc   = t.poster_path ? `${TMDB_IMAGE_BASE}${t.poster_path}` : null
+            }
 
             return (
-              <li key={result.id}>
+              <li key={rowKey}>
                 <button
                   onClick={() => handleSelect(result)}
                   disabled={saving}
@@ -267,6 +316,11 @@ export default function MediaSearch({ userId, onSaved }: Props) {
                   )}
                   <div className="flex flex-col">
                     <span className="font-medium">{title}</span>
+                    {subtitle && (
+                      <span className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                        {subtitle}
+                      </span>
+                    )}
                     {displayYear && (
                       <span className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
                         {displayYear}
