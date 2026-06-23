@@ -4,14 +4,16 @@ import { supabase } from '../lib/supabase'
 const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY as string
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w92'
 
-type Tab = 'movie' | 'tv_show' | 'kdrama'
+type Tab = 'movie' | 'tv_show' | 'kdrama' | 'anime'
 
 const TABS: { value: Tab; label: string }[] = [
   { value: 'movie',   label: 'Movie' },
   { value: 'tv_show', label: 'TV Show' },
   { value: 'kdrama',  label: 'Kdrama' },
+  { value: 'anime',   label: 'Anime' },
 ]
 
+// TMDB shapes
 interface TmdbMovie {
   id: number
   title: string
@@ -32,6 +34,37 @@ function isTV(r: TmdbResult): r is TmdbTV {
   return 'name' in r
 }
 
+// AniList shape
+interface AniListResult {
+  id: number
+  title: { english: string | null; romaji: string }
+  coverImage: { large: string | null; medium: string | null }
+  startDate: { year: number | null }
+}
+
+const ANILIST_QUERY = `
+  query ($search: String) {
+    Page(perPage: 10) {
+      media(search: $search, type: ANIME, sort: SEARCH_MATCH) {
+        id
+        title { english romaji }
+        coverImage { large medium }
+        startDate { year }
+      }
+    }
+  }
+`
+
+async function searchAniList(search: string): Promise<AniListResult[]> {
+  const res = await fetch('https://graphql.anilist.co', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query: ANILIST_QUERY, variables: { search } }),
+  })
+  const json = await res.json()
+  return json?.data?.Page?.media ?? []
+}
+
 interface Props {
   userId: string
   onSaved: () => void
@@ -40,7 +73,7 @@ interface Props {
 export default function MediaSearch({ userId, onSaved }: Props) {
   const [tab, setTab] = useState<Tab>('movie')
   const [query, setQuery] = useState('')
-  const [results, setResults] = useState<TmdbResult[]>([])
+  const [results, setResults] = useState<TmdbResult[] | AniListResult[]>([])
   const [searching, setSearching] = useState(false)
   const [saved, setSaved] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
@@ -56,12 +89,16 @@ export default function MediaSearch({ userId, onSaved }: Props) {
     debounceRef.current = setTimeout(async () => {
       setSearching(true)
       try {
-        const endpoint = tab === 'movie' ? 'search/movie' : 'search/tv'
-        const res = await fetch(
-          `https://api.themoviedb.org/3/${endpoint}?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&include_adult=false`
-        )
-        const data = await res.json()
-        setResults(data.results ?? [])
+        if (tab === 'anime') {
+          setResults(await searchAniList(query))
+        } else {
+          const endpoint = tab === 'movie' ? 'search/movie' : 'search/tv'
+          const res = await fetch(
+            `https://api.themoviedb.org/3/${endpoint}?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&include_adult=false`
+          )
+          const data = await res.json()
+          setResults(data.results ?? [])
+        }
       } catch {
         setResults([])
       } finally {
@@ -78,17 +115,34 @@ export default function MediaSearch({ userId, onSaved }: Props) {
     setSaveError('')
   }
 
-  async function handleSelect(result: TmdbResult) {
+  async function handleSelect(result: TmdbResult | AniListResult) {
     if (saving) return
     setSaving(true)
     setSaved(null)
     setSaveError('')
 
-    const title = isTV(result) ? result.name : result.title
-    const date = isTV(result) ? result.first_air_date : result.release_date
-    const year = date ? date.slice(0, 4) : null
+    let title: string
+    let year: string | null
+    let poster_url: string | null
+    let source_api: string
+    let source_id: string
 
-    const poster_url = result.poster_path ? `${TMDB_IMAGE_BASE}${result.poster_path}` : null
+    if (tab === 'anime') {
+      const a = result as AniListResult
+      title      = a.title.english || a.title.romaji
+      year       = a.startDate.year ? String(a.startDate.year) : null
+      poster_url = a.coverImage.large ?? a.coverImage.medium ?? null
+      source_api = 'anilist'
+      source_id  = String(a.id)
+    } else {
+      const t = result as TmdbResult
+      title      = isTV(t) ? t.name : t.title
+      const date = isTV(t) ? t.first_air_date : t.release_date
+      year       = date ? date.slice(0, 4) : null
+      poster_url = t.poster_path ? `${TMDB_IMAGE_BASE}${t.poster_path}` : null
+      source_api = 'tmdb'
+      source_id  = String(t.id)
+    }
 
     const { error } = await supabase.from('entries').insert({
       user_id: userId,
@@ -97,8 +151,8 @@ export default function MediaSearch({ userId, onSaved }: Props) {
       poster_url,
       type: tab,
       status: 'plan_to_watch',
-      source_api: 'tmdb',
-      source_id: String(result.id),
+      source_api,
+      source_id,
     })
 
     setSaving(false)
@@ -112,7 +166,10 @@ export default function MediaSearch({ userId, onSaved }: Props) {
     }
   }
 
-  const placeholder = tab === 'movie' ? 'Search for a movie…' : 'Search for a TV show…'
+  const placeholder =
+    tab === 'movie' ? 'Search for a movie…' :
+    tab === 'anime' ? 'Search for an anime…' :
+    'Search for a TV show…'
 
   return (
     <div className="flex flex-col gap-4 w-full max-w-lg mx-auto mt-10 px-4">
@@ -173,8 +230,17 @@ export default function MediaSearch({ userId, onSaved }: Props) {
       {results.length > 0 && (
         <ul className="flex flex-col gap-2">
           {results.map(result => {
-            const title = isTV(result) ? result.name : result.title
-            const date  = isTV(result) ? result.first_air_date : result.release_date
+            const isAnime = tab === 'anime'
+            const a = result as AniListResult
+            const t = result as TmdbResult
+            const title     = isAnime ? (a.title.english || a.title.romaji) : (isTV(t) ? t.name : t.title)
+            const year      = isAnime ? a.startDate.year : null
+            const date      = isAnime ? null : (isTV(t) ? t.first_air_date : t.release_date)
+            const posterSrc = isAnime
+              ? (a.coverImage.large ?? a.coverImage.medium ?? null)
+              : (t.poster_path ? `${TMDB_IMAGE_BASE}${t.poster_path}` : null)
+            const displayYear = isAnime ? (year ? String(year) : null) : (date ? date.slice(0, 4) : null)
+
             return (
               <li key={result.id}>
                 <button
@@ -187,9 +253,9 @@ export default function MediaSearch({ userId, onSaved }: Props) {
                     color: 'var(--color-text)',
                   }}
                 >
-                  {result.poster_path ? (
+                  {posterSrc ? (
                     <img
-                      src={`${TMDB_IMAGE_BASE}${result.poster_path}`}
+                      src={posterSrc}
                       alt=""
                       className="w-10 h-14 object-cover rounded flex-shrink-0"
                     />
@@ -201,9 +267,9 @@ export default function MediaSearch({ userId, onSaved }: Props) {
                   )}
                   <div className="flex flex-col">
                     <span className="font-medium">{title}</span>
-                    {date && (
+                    {displayYear && (
                       <span className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                        {date.slice(0, 4)}
+                        {displayYear}
                       </span>
                     )}
                   </div>
