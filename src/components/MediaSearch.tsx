@@ -16,12 +16,32 @@ const TABS: { value: Tab; label: string }[] = [
   { value: 'manhwa',  label: 'Manhwa' },
 ]
 
+// TMDB genre ID → name maps (stable public lists, no API call needed)
+const TMDB_MOVIE_GENRES: Record<number, string> = {
+  28: 'Action', 12: 'Adventure', 16: 'Animation', 35: 'Comedy', 80: 'Crime',
+  99: 'Documentary', 18: 'Drama', 10751: 'Family', 14: 'Fantasy', 36: 'History',
+  27: 'Horror', 10402: 'Music', 9648: 'Mystery', 10749: 'Romance',
+  878: 'Science Fiction', 10770: 'TV Movie', 53: 'Thriller', 10752: 'War', 37: 'Western',
+}
+const TMDB_TV_GENRES: Record<number, string> = {
+  10759: 'Action & Adventure', 16: 'Animation', 35: 'Comedy', 80: 'Crime',
+  99: 'Documentary', 18: 'Drama', 10751: 'Family', 10762: 'Kids', 9648: 'Mystery',
+  10763: 'News', 10764: 'Reality', 10765: 'Sci-Fi & Fantasy', 10766: 'Soap',
+  10767: 'Talk', 10768: 'War & Politics', 37: 'Western',
+}
+
+function tmdbGenreNames(ids: number[], isMovie: boolean): string[] {
+  const map = isMovie ? TMDB_MOVIE_GENRES : TMDB_TV_GENRES
+  return ids.map(id => map[id]).filter(Boolean)
+}
+
 // TMDB shapes
 interface TmdbMovie {
   id: number
   title: string
   release_date: string
   poster_path: string | null
+  genre_ids: number[]
 }
 
 interface TmdbTV {
@@ -29,6 +49,7 @@ interface TmdbTV {
   name: string
   first_air_date: string
   poster_path: string | null
+  genre_ids: number[]
 }
 
 type TmdbResult = TmdbMovie | TmdbTV
@@ -43,6 +64,7 @@ interface AniListResult {
   title: { english: string | null; romaji: string }
   coverImage: { large: string | null; medium: string | null }
   startDate: { year: number | null }
+  genres: string[]
 }
 
 const ANILIST_QUERY = `
@@ -53,6 +75,7 @@ const ANILIST_QUERY = `
         title { english romaji }
         coverImage { large medium }
         startDate { year }
+        genres
       }
     }
   }
@@ -110,6 +133,7 @@ const ANILIST_MANGA_QUERY = `
         title { english romaji }
         coverImage { large medium }
         startDate { year }
+        genres
       }
     }
   }
@@ -206,6 +230,7 @@ export default function MediaSearch({ userId, onSaved }: Props) {
     let source_api: string
     let source_id: string
     let metadata: Record<string, unknown> | undefined
+    let genres: string[] | null = null
 
     if (tab === 'anime') {
       const a = result as AniListResult
@@ -214,6 +239,7 @@ export default function MediaSearch({ userId, onSaved }: Props) {
       poster_url = a.coverImage.large ?? a.coverImage.medium ?? null
       source_api = 'anilist'
       source_id  = String(a.id)
+      genres     = a.genres.length > 0 ? a.genres : null
     } else if (tab === 'book') {
       const b = result as OpenLibraryDoc
       const author = b.author_name?.[0] ?? null
@@ -232,6 +258,7 @@ export default function MediaSearch({ userId, onSaved }: Props) {
         poster_url = a.coverImage.large ?? a.coverImage.medium ?? null
         source_api = 'anilist'
         source_id  = String(a.id)
+        genres     = a.genres.length > 0 ? a.genres : null
       } else {
         const m = mr as TaggedMangaDex
         title      = m.attributes.title.en ?? Object.values(m.attributes.title)[0] ?? ''
@@ -251,6 +278,8 @@ export default function MediaSearch({ userId, onSaved }: Props) {
       poster_url = t.poster_path ? `${TMDB_IMAGE_BASE}${t.poster_path}` : null
       source_api = 'tmdb'
       source_id  = String(t.id)
+      genres     = tmdbGenreNames(t.genre_ids ?? [], tab === 'movie')
+      if (genres.length === 0) genres = null
     }
 
     const { error } = await supabase.from('entries').insert({
@@ -263,6 +292,7 @@ export default function MediaSearch({ userId, onSaved }: Props) {
       source_api,
       source_id,
       ...(metadata ? { metadata } : {}),
+      ...(genres   ? { genres }   : {}),
     })
 
     setSaving(false)

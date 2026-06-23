@@ -30,6 +30,7 @@ export interface EditableEntry {
   rating: number | null
   type: string
   metadata: Record<string, unknown> | null
+  genres: string[] | null
 }
 
 interface Props {
