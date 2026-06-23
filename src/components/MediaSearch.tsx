@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import ManualEntryModal from './ManualEntryModal'
 
 const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY as string
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w92'
@@ -170,7 +171,8 @@ interface Props {
 }
 
 export default function MediaSearch({ userId, onSaved }: Props) {
-  const [tab, setTab] = useState<Tab>('movie')
+  const [tab, setTab]           = useState<Tab>('movie')
+  const [showManual, setShowManual] = useState(false)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<TmdbResult[] | AniListResult[] | OpenLibraryDoc[] | MangaResult[]>([])
   const [searching, setSearching] = useState(false)
@@ -319,6 +321,7 @@ export default function MediaSearch({ userId, onSaved }: Props) {
     'Search for a TV show…'
 
   return (
+    <>
     <div className="flex flex-col gap-4 w-full max-w-lg mx-auto mt-10 px-4">
       <div
         className="flex rounded overflow-hidden self-start"
@@ -338,6 +341,14 @@ export default function MediaSearch({ userId, onSaved }: Props) {
           </button>
         ))}
       </div>
+
+      <button
+        onClick={() => setShowManual(true)}
+        className="text-xs self-start cursor-pointer hover:opacity-80"
+        style={{ background: 'none', border: 'none', padding: 0, color: 'var(--color-text-muted)' }}
+      >
+        Can't find it? Add manually
+      </button>
 
       <input
         type="text"
@@ -467,5 +478,14 @@ export default function MediaSearch({ userId, onSaved }: Props) {
         </ul>
       )}
     </div>
+
+    {showManual && (
+      <ManualEntryModal
+        userId={userId}
+        onClose={() => setShowManual(false)}
+        onSaved={() => { setShowManual(false); onSaved() }}
+      />
+    )}
+    </>
   )
 }
