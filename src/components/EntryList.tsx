@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import EntryEditModal, { STATUS_OPTIONS } from './EntryEditModal'
+import EntryEditModal, { statusLabel } from './EntryEditModal'
 import type { EditableEntry } from './EntryEditModal'
-
-const STATUS_LABELS = Object.fromEntries(STATUS_OPTIONS.map(o => [o.value, o.label]))
 
 interface Props {
   userId: string
@@ -19,7 +17,7 @@ export default function EntryList({ userId, refreshKey }: Props) {
     setLoading(true)
     supabase
       .from('entries')
-      .select('id, title, year, poster_url, status, rating')
+      .select('id, title, year, poster_url, status, rating, type, metadata')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .then(({ data }) => {
@@ -28,7 +26,7 @@ export default function EntryList({ userId, refreshKey }: Props) {
       })
   }, [userId, refreshKey])
 
-  function handleSaved(updated: Pick<EditableEntry, 'id' | 'status' | 'rating'>) {
+  function handleSaved(updated: Pick<EditableEntry, 'id' | 'status' | 'rating' | 'metadata'>) {
     setEntries(prev =>
       prev.map(e => e.id === updated.id ? { ...e, ...updated } : e)
     )
@@ -93,7 +91,7 @@ export default function EntryList({ userId, refreshKey }: Props) {
                   border: '1px solid var(--color-border)',
                 }}
               >
-                {STATUS_LABELS[entry.status] ?? entry.status}
+                {statusLabel(entry.status, entry.type)}
               </span>
               {entry.rating !== null && (
                 <span
