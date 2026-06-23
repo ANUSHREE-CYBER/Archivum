@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from './lib/supabase'
 import LoginPage from './pages/LoginPage'
-import MovieSearch from './components/MovieSearch'
+import MediaSearch from './components/MediaSearch'
 import EntryList from './components/EntryList'
 
 function App() {
@@ -42,7 +42,7 @@ function App() {
         </button>
       </header>
       <main className="flex-1 overflow-y-auto">
-        <MovieSearch userId={session.user.id} onSaved={() => setRefreshKey(k => k + 1)} />
+        <MediaSearch userId={session.user.id} onSaved={() => setRefreshKey(k => k + 1)} />
         <EntryList userId={session.user.id} refreshKey={refreshKey} />
       </main>
     </div>
