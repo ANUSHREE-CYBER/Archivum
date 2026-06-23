@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY as string
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w92'
 
-type Tab = 'movie' | 'tv_show' | 'kdrama' | 'anime' | 'book'
+type Tab = 'movie' | 'tv_show' | 'kdrama' | 'anime' | 'book' | 'manga' | 'manhwa'
 
 const TABS: { value: Tab; label: string }[] = [
   { value: 'movie',   label: 'Movie' },
@@ -12,6 +12,8 @@ const TABS: { value: Tab; label: string }[] = [
   { value: 'kdrama',  label: 'Kdrama' },
   { value: 'anime',   label: 'Anime' },
   { value: 'book',    label: 'Books' },
+  { value: 'manga',   label: 'Manga' },
+  { value: 'manhwa',  label: 'Manhwa' },
 ]
 
 // TMDB shapes
@@ -83,6 +85,61 @@ async function searchOpenLibrary(query: string): Promise<OpenLibraryDoc[]> {
   return json?.docs ?? []
 }
 
+// MangaDex shape
+interface MangaDexResult {
+  id: string
+  attributes: {
+    title: Record<string, string>
+    year: number | null
+  }
+  relationships: Array<{
+    type: string
+    attributes?: { fileName: string }
+  }>
+}
+
+type TaggedAniList  = AniListResult  & { _source: 'anilist' }
+type TaggedMangaDex = MangaDexResult & { _source: 'mangadex' }
+type MangaResult    = TaggedAniList | TaggedMangaDex
+
+const ANILIST_MANGA_QUERY = `
+  query ($search: String) {
+    Page(perPage: 10) {
+      media(search: $search, type: MANGA, sort: SEARCH_MATCH) {
+        id
+        title { english romaji }
+        coverImage { large medium }
+        startDate { year }
+      }
+    }
+  }
+`
+
+async function searchAniListManga(search: string): Promise<AniListResult[]> {
+  const res = await fetch('https://graphql.anilist.co', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query: ANILIST_MANGA_QUERY, variables: { search } }),
+  })
+  const json = await res.json()
+  return json?.data?.Page?.media ?? []
+}
+
+async function searchMangaDex(query: string): Promise<MangaDexResult[]> {
+  const res = await fetch(
+    `https://api.mangadex.org/manga?title=${encodeURIComponent(query)}&includes[]=cover_art&limit=10`
+  )
+  const json = await res.json()
+  return json?.data ?? []
+}
+
+async function searchMangaWithFallback(query: string): Promise<MangaResult[]> {
+  const anilist = await searchAniListManga(query)
+  if (anilist.length > 0) return anilist.map(r => ({ ...r, _source: 'anilist' as const }))
+  const mangadex = await searchMangaDex(query)
+  return mangadex.map(r => ({ ...r, _source: 'mangadex' as const }))
+}
+
 interface Props {
   userId: string
   onSaved: () => void
@@ -91,7 +148,7 @@ interface Props {
 export default function MediaSearch({ userId, onSaved }: Props) {
   const [tab, setTab] = useState<Tab>('movie')
   const [query, setQuery] = useState('')
-  const [results, setResults] = useState<TmdbResult[] | AniListResult[] | OpenLibraryDoc[]>([])
+  const [results, setResults] = useState<TmdbResult[] | AniListResult[] | OpenLibraryDoc[] | MangaResult[]>([])
   const [searching, setSearching] = useState(false)
   const [saved, setSaved] = useState<number | string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -111,6 +168,8 @@ export default function MediaSearch({ userId, onSaved }: Props) {
           setResults(await searchAniList(query))
         } else if (tab === 'book') {
           setResults(await searchOpenLibrary(query))
+        } else if (tab === 'manga' || tab === 'manhwa') {
+          setResults(await searchMangaWithFallback(query))
         } else {
           const endpoint = tab === 'movie' ? 'search/movie' : 'search/tv'
           const res = await fetch(
@@ -135,7 +194,7 @@ export default function MediaSearch({ userId, onSaved }: Props) {
     setSaveError('')
   }
 
-  async function handleSelect(result: TmdbResult | AniListResult | OpenLibraryDoc) {
+  async function handleSelect(result: TmdbResult | AniListResult | OpenLibraryDoc | MangaResult) {
     if (saving) return
     setSaving(true)
     setSaved(null)
@@ -164,6 +223,26 @@ export default function MediaSearch({ userId, onSaved }: Props) {
       source_api = 'openlibrary'
       source_id  = b.key
       metadata   = author ? { author } : undefined
+    } else if (tab === 'manga' || tab === 'manhwa') {
+      const mr = result as MangaResult
+      if (mr._source === 'anilist') {
+        const a = mr as TaggedAniList
+        title      = a.title.english || a.title.romaji
+        year       = a.startDate.year ? String(a.startDate.year) : null
+        poster_url = a.coverImage.large ?? a.coverImage.medium ?? null
+        source_api = 'anilist'
+        source_id  = String(a.id)
+      } else {
+        const m = mr as TaggedMangaDex
+        title      = m.attributes.title.en ?? Object.values(m.attributes.title)[0] ?? ''
+        year       = m.attributes.year ? String(m.attributes.year) : null
+        const coverRel = m.relationships.find(r => r.type === 'cover_art')
+        poster_url = coverRel?.attributes?.fileName
+          ? `https://uploads.mangadex.org/covers/${m.id}/${coverRel.attributes.fileName}.256.jpg`
+          : null
+        source_api = 'mangadex'
+        source_id  = m.id
+      }
     } else {
       const t = result as TmdbResult
       title      = isTV(t) ? t.name : t.title
@@ -190,7 +269,11 @@ export default function MediaSearch({ userId, onSaved }: Props) {
     if (error) {
       setSaveError(error.message)
     } else {
-      setSaved(tab === 'book' ? (result as OpenLibraryDoc).key : (result as TmdbResult | AniListResult).id)
+      setSaved(
+        tab === 'book' ? (result as OpenLibraryDoc).key :
+        (tab === 'manga' || tab === 'manhwa') && (result as MangaResult)._source === 'mangadex' ? (result as TaggedMangaDex).id :
+        (result as TmdbResult | AniListResult).id
+      )
       setQuery('')
       setResults([])
       onSaved()
@@ -198,9 +281,11 @@ export default function MediaSearch({ userId, onSaved }: Props) {
   }
 
   const placeholder =
-    tab === 'movie' ? 'Search for a movie…' :
-    tab === 'anime' ? 'Search for an anime…' :
-    tab === 'book'  ? 'Search for a book…' :
+    tab === 'movie'   ? 'Search for a movie…' :
+    tab === 'anime'   ? 'Search for an anime…' :
+    tab === 'book'    ? 'Search for a book…' :
+    tab === 'manga'   ? 'Search for a manga…' :
+    tab === 'manhwa'  ? 'Search for a manhwa…' :
     'Search for a TV show…'
 
   return (
@@ -281,6 +366,24 @@ export default function MediaSearch({ userId, onSaved }: Props) {
               title       = a.title.english || a.title.romaji
               displayYear = a.startDate.year ? String(a.startDate.year) : null
               posterSrc   = a.coverImage.large ?? a.coverImage.medium ?? null
+            } else if (tab === 'manga' || tab === 'manhwa') {
+              const mr = result as MangaResult
+              if (mr._source === 'anilist') {
+                const a = mr as TaggedAniList
+                rowKey      = String(a.id)
+                title       = a.title.english || a.title.romaji
+                displayYear = a.startDate.year ? String(a.startDate.year) : null
+                posterSrc   = a.coverImage.large ?? a.coverImage.medium ?? null
+              } else {
+                const m = mr as TaggedMangaDex
+                rowKey      = m.id
+                title       = m.attributes.title.en ?? Object.values(m.attributes.title)[0] ?? ''
+                displayYear = m.attributes.year ? String(m.attributes.year) : null
+                const coverRel = m.relationships.find(r => r.type === 'cover_art')
+                posterSrc   = coverRel?.attributes?.fileName
+                  ? `https://uploads.mangadex.org/covers/${m.id}/${coverRel.attributes.fileName}.256.jpg`
+                  : null
+              }
             } else {
               const t = result as TmdbResult
               rowKey      = String(t.id)
