@@ -45,6 +45,15 @@ function App() {
         <MediaSearch userId={session.user.id} onSaved={() => setRefreshKey(k => k + 1)} />
         <EntryList userId={session.user.id} refreshKey={refreshKey} />
       </main>
+      <footer
+        className="px-6 py-2 text-xs text-center"
+        style={{
+          borderTop: '1px solid var(--color-border)',
+          color: 'var(--color-text-muted)',
+        }}
+      >
+        This product uses the TMDB API but is not endorsed or certified by TMDB. Additional data from AniList and Open Library.
+      </footer>
     </div>
   )
 }
