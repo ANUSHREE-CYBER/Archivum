@@ -29,3 +29,13 @@
     -moz-osx-font-smoothing: grayscale;
   }
 }
+
+/* Cursor overrides — unlayered so they beat all Tailwind layers */
+* {
+  cursor: none !important;
+}
+input,
+textarea,
+select {
+  cursor: text !important;
+}

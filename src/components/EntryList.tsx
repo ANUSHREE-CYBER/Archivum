@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../lib/supabase'
 import EntryEditModal, { STATUS_OPTIONS, statusLabel } from './EntryEditModal'
 import type { EditableEntry } from './EntryEditModal'
@@ -29,10 +30,28 @@ const STATUS_FILTER_OPTIONS = STATUS_OPTIONS.map(o => ({
     o.label,
 }))
 
+function sharpPoster(url: string | null): string | null {
+  if (!url || !url.includes('image.tmdb.org')) return url
+  return url.replace('/w92', '/w342')
+}
+
 const SELECT_STYLE = {
   background: 'var(--color-surface)',
   border: '1px solid var(--color-border)',
   color: 'var(--color-text)',
+}
+
+const cardVariants = {
+  hidden: { opacity: 0, y: 14 },
+  visible: (i: number) => ({
+    opacity: 1,
+    y: 0,
+    transition: {
+      delay: Math.min(i * 0.035, 0.35),
+      duration: 0.32,
+      ease: [0.22, 1, 0.36, 1],
+    },
+  }),
 }
 
 interface Props {
@@ -172,18 +191,25 @@ export default function EntryList({ userId, refreshKey }: Props) {
           className="grid gap-4 px-6 pb-10"
           style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))' }}
         >
-          {visible.map(entry => (
-            <button
+          <AnimatePresence mode="popLayout">
+          {visible.map((entry, i) => (
+            <motion.button
               key={entry.id}
+              custom={i}
+              variants={cardVariants}
+              initial="hidden"
+              animate="visible"
+              exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.15 } }}
+              whileHover={{ scale: 1.03, y: -3, transition: { duration: 0.2, ease: 'easeOut' } }}
               onClick={() => setEditing(entry)}
-              className="flex flex-col gap-2 text-left cursor-pointer hover:opacity-80"
-              style={{ background: 'none', border: 'none', padding: 0 }}
+              className="group flex flex-col gap-2 text-left cursor-pointer"
+              style={{ background: 'none', border: 'none', padding: 0, transformOrigin: 'bottom center' }}
             >
               {entry.poster_url ? (
                 <img
-                  src={entry.poster_url}
+                  src={sharpPoster(entry.poster_url)!}
                   alt={entry.title}
-                  className="w-full rounded object-cover"
+                  className="w-full rounded object-cover transition-[filter] duration-300 group-hover:brightness-110"
                   style={{ aspectRatio: '2/3' }}
                 />
               ) : (
@@ -220,8 +246,9 @@ export default function EntryList({ userId, refreshKey }: Props) {
                   </span>
                 )}
               </div>
-            </button>
+            </motion.button>
           ))}
+          </AnimatePresence>
         </div>
       )}
 
