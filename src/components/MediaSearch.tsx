@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import ManualEntryModal from './ManualEntryModal'
 
 const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY as string
-const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w92'
+const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w342'
 
 type Tab = 'movie' | 'tv_show' | 'kdrama' | 'anime' | 'book' | 'manga' | 'manhwa'
 

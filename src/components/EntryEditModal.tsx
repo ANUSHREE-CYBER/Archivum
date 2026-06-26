@@ -65,6 +65,11 @@ function NumField({ label, value, onChange }: {
   )
 }
 
+function sharpPoster(url: string | null): string | null {
+  if (!url || !url.includes('image.tmdb.org')) return url
+  return url.replace('/w92', '/w342')
+}
+
 export default function EntryEditModal({ entry, onClose, onSaved }: Props) {
   const meta = (entry.metadata ?? {}) as Record<string, unknown>
 
@@ -142,7 +147,7 @@ export default function EntryEditModal({ entry, onClose, onSaved }: Props) {
         <div className="flex gap-4 items-start">
           {entry.poster_url ? (
             <img
-              src={entry.poster_url}
+              src={sharpPoster(entry.poster_url)!}
               alt={entry.title}
               className="w-14 rounded object-cover flex-shrink-0"
               style={{ aspectRatio: '2/3' }}
