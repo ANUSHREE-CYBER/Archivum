@@ -75,6 +75,9 @@ const cardVariants = {
 }
 
 function EntryCard({ entry, index, onClick }: { entry: EditableEntry; index: number; onClick: () => void }) {
+  const [imgError, setImgError] = useState(false)
+  const showFallback = !entry.poster_url || imgError
+
   return (
     <motion.button
       custom={index}
@@ -82,23 +85,47 @@ function EntryCard({ entry, index, onClick }: { entry: EditableEntry; index: num
       initial="hidden"
       animate="visible"
       exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.15 } }}
-      whileHover={{ scale: 1.03, y: -3, transition: { duration: 0.2, ease: 'easeOut' } }}
+      whileHover={{
+        scale: 1.04,
+        y: -3,
+        boxShadow: '0 0 20px 3px rgba(212,175,106,0.35)',
+        transition: { duration: 0.25, ease: 'easeOut' },
+      }}
       onClick={onClick}
       className="group flex flex-col gap-2 text-left cursor-pointer w-full"
-      style={{ background: 'none', border: 'none', padding: 0, transformOrigin: 'bottom center' }}
+      style={{
+        background: 'none',
+        border: 'none',
+        padding: 0,
+        borderRadius: 6,
+        boxShadow: '0 0 0px 0px rgba(212,175,106,0)',
+        transformOrigin: 'bottom center',
+      }}
     >
-      <div className="relative w-full" style={{ aspectRatio: '2/3' }}>
-        {entry.poster_url ? (
+      <div className="relative w-full overflow-hidden rounded" style={{ aspectRatio: '2/3' }}>
+        {!showFallback ? (
           <img
             src={sharpPoster(entry.poster_url)!}
             alt={entry.title}
+            onError={() => setImgError(true)}
             className="w-full h-full rounded object-cover transition-[filter] duration-300 group-hover:brightness-110"
           />
         ) : (
           <div
-            className="w-full h-full rounded"
-            style={{ aspectRatio: '2/3', background: 'var(--color-surface)' }}
-          />
+            className="w-full h-full rounded flex items-center justify-center p-3 text-center"
+            style={{ background: 'linear-gradient(180deg, #171717 0%, #0c0c0c 100%)' }}
+          >
+            <span
+              className="leading-snug line-clamp-5"
+              style={{
+                fontFamily: "Georgia, 'Times New Roman', serif",
+                fontSize: 13,
+                color: 'var(--color-text-muted)',
+              }}
+            >
+              {entry.title}
+            </span>
+          </div>
         )}
         <span
           title={TYPE_LABELS[entry.type] ?? entry.type}
