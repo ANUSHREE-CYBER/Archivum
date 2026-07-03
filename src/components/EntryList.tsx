@@ -74,6 +74,74 @@ const cardVariants = {
   }),
 }
 
+function EntryCard({ entry, index, onClick }: { entry: EditableEntry; index: number; onClick: () => void }) {
+  return (
+    <motion.button
+      custom={index}
+      variants={cardVariants}
+      initial="hidden"
+      animate="visible"
+      exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.15 } }}
+      whileHover={{ scale: 1.03, y: -3, transition: { duration: 0.2, ease: 'easeOut' } }}
+      onClick={onClick}
+      className="group flex flex-col gap-2 text-left cursor-pointer w-full"
+      style={{ background: 'none', border: 'none', padding: 0, transformOrigin: 'bottom center' }}
+    >
+      <div className="relative w-full" style={{ aspectRatio: '2/3' }}>
+        {entry.poster_url ? (
+          <img
+            src={sharpPoster(entry.poster_url)!}
+            alt={entry.title}
+            className="w-full h-full rounded object-cover transition-[filter] duration-300 group-hover:brightness-110"
+          />
+        ) : (
+          <div
+            className="w-full h-full rounded"
+            style={{ aspectRatio: '2/3', background: 'var(--color-surface)' }}
+          />
+        )}
+        <span
+          title={TYPE_LABELS[entry.type] ?? entry.type}
+          className="absolute top-1.5 left-1.5 rounded-full"
+          style={{
+            width: 9,
+            height: 9,
+            background: TYPE_DOT_COLORS[entry.type] ?? 'var(--color-text-muted)',
+            boxShadow: '0 0 0 2px rgba(8,8,8,0.7)',
+          }}
+        />
+      </div>
+      <div className="flex flex-col gap-1">
+        <span
+          className="text-sm font-medium leading-tight line-clamp-2"
+          style={{ color: 'var(--color-text)' }}
+        >
+          {entry.title}
+        </span>
+        {entry.year && (
+          <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+            {entry.year}
+          </span>
+        )}
+        <span
+          className="text-xs rounded-full px-2 py-0.5 self-start font-medium"
+          style={{
+            background: (STATUS_STYLES[entry.status] ?? STATUS_STYLES.dropped).bg,
+            color: (STATUS_STYLES[entry.status] ?? STATUS_STYLES.dropped).text,
+          }}
+        >
+          {statusLabel(entry.status, entry.type)}
+        </span>
+        {entry.rating !== null && (
+          <span className="text-xs font-semibold" style={{ color: 'var(--color-gold)' }}>
+            {entry.rating}/10
+          </span>
+        )}
+      </div>
+    </motion.button>
+  )
+}
+
 interface Props {
   userId: string
   refreshKey: number
@@ -134,6 +202,8 @@ export default function EntryList({ userId, refreshKey, typeFilter }: Props) {
     return result
   }, [entries, typeFilter, statusFilter, genreFilter, sortBy])
 
+  const inProgress = useMemo(() => entries.filter(e => e.status === 'in_progress'), [entries])
+
   function handleSaved(updated: Pick<EditableEntry, 'id' | 'status' | 'rating' | 'metadata'>) {
     setEntries(prev =>
       prev.map(e => e.id === updated.id ? { ...e, ...updated } : e)
@@ -152,6 +222,21 @@ export default function EntryList({ userId, refreshKey, typeFilter }: Props) {
 
   return (
     <>
+      {inProgress.length > 0 && (
+        <div className="pt-6 pb-2">
+          <h2 className="text-sm font-semibold px-6 mb-3" style={{ color: 'var(--color-text)' }}>
+            Continue
+          </h2>
+          <div className="flex gap-4 overflow-x-auto px-6 pb-2">
+            {inProgress.map((entry, i) => (
+              <div key={entry.id} style={{ width: 130, flexShrink: 0 }}>
+                <EntryCard entry={entry} index={i} onClick={() => setEditing(entry)} />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* filter + sort bar */}
       <div className="flex flex-wrap gap-2 px-6 pb-4">
         <select
@@ -201,70 +286,7 @@ export default function EntryList({ userId, refreshKey, typeFilter }: Props) {
         >
           <AnimatePresence mode="popLayout">
           {visible.map((entry, i) => (
-            <motion.button
-              key={entry.id}
-              custom={i}
-              variants={cardVariants}
-              initial="hidden"
-              animate="visible"
-              exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.15 } }}
-              whileHover={{ scale: 1.03, y: -3, transition: { duration: 0.2, ease: 'easeOut' } }}
-              onClick={() => setEditing(entry)}
-              className="group flex flex-col gap-2 text-left cursor-pointer"
-              style={{ background: 'none', border: 'none', padding: 0, transformOrigin: 'bottom center' }}
-            >
-              <div className="relative w-full" style={{ aspectRatio: '2/3' }}>
-                {entry.poster_url ? (
-                  <img
-                    src={sharpPoster(entry.poster_url)!}
-                    alt={entry.title}
-                    className="w-full h-full rounded object-cover transition-[filter] duration-300 group-hover:brightness-110"
-                  />
-                ) : (
-                  <div
-                    className="w-full h-full rounded"
-                    style={{ aspectRatio: '2/3', background: 'var(--color-surface)' }}
-                  />
-                )}
-                <span
-                  title={TYPE_LABELS[entry.type] ?? entry.type}
-                  className="absolute top-1.5 left-1.5 rounded-full"
-                  style={{
-                    width: 9,
-                    height: 9,
-                    background: TYPE_DOT_COLORS[entry.type] ?? 'var(--color-text-muted)',
-                    boxShadow: '0 0 0 2px rgba(8,8,8,0.7)',
-                  }}
-                />
-              </div>
-              <div className="flex flex-col gap-1">
-                <span
-                  className="text-sm font-medium leading-tight line-clamp-2"
-                  style={{ color: 'var(--color-text)' }}
-                >
-                  {entry.title}
-                </span>
-                {entry.year && (
-                  <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                    {entry.year}
-                  </span>
-                )}
-                <span
-                  className="text-xs rounded-full px-2 py-0.5 self-start font-medium"
-                  style={{
-                    background: (STATUS_STYLES[entry.status] ?? STATUS_STYLES.dropped).bg,
-                    color: (STATUS_STYLES[entry.status] ?? STATUS_STYLES.dropped).text,
-                  }}
-                >
-                  {statusLabel(entry.status, entry.type)}
-                </span>
-                {entry.rating !== null && (
-                  <span className="text-xs font-semibold" style={{ color: 'var(--color-gold)' }}>
-                    {entry.rating}/10
-                  </span>
-                )}
-              </div>
-            </motion.button>
+            <EntryCard key={entry.id} entry={entry} index={i} onClick={() => setEditing(entry)} />
           ))}
           </AnimatePresence>
         </div>
