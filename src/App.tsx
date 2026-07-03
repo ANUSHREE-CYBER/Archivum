@@ -3,11 +3,16 @@ import type { Session } from '@supabase/supabase-js'
 import { supabase } from './lib/supabase'
 import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage' // kept for reference
-import MediaSearch from './components/MediaSearch'
+import MediaSearch, { TABS } from './components/MediaSearch'
 import type { Tab } from './components/MediaSearch'
 import EntryList from './components/EntryList'
 import StatsDashboard from './components/StatsDashboard'
 import SmoothCursor from './components/SmoothCursor'
+
+const TYPE_FILTER_TABS: { value: 'all' | Tab; label: string }[] = [
+  { value: 'all', label: 'All' },
+  ...TABS,
+]
 
 function App() {
   const [session, setSession] = useState<Session | null>(null)
@@ -15,6 +20,7 @@ function App() {
   const [refreshKey, setRefreshKey] = useState(0)
   const [activeView, setActiveView] = useState<'library' | 'stats'>('library')
   const [typeFilter, setTypeFilter] = useState<'all' | Tab>('all')
+  const [showAdd, setShowAdd] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -38,21 +44,22 @@ function App() {
       <SmoothCursor />
       <div className="flex flex-col h-full">
         <header
-          className="flex items-center justify-between px-6 py-3"
+          className="flex items-center justify-between px-6 py-4"
           style={{ borderBottom: '1px solid var(--color-border)' }}
         >
-          <div style={{ display: 'flex', gap: 4 }}>
+          <div style={{ display: 'flex', gap: 6 }}>
             {(['library', 'stats'] as const).map(view => (
               <button
                 key={view}
                 onClick={() => setActiveView(view)}
-                className="text-sm cursor-pointer"
+                className="text-base cursor-pointer"
                 style={{
-                  padding: '5px 16px',
+                  padding: '7px 20px',
                   borderRadius: 6,
                   border: 'none',
-                  fontWeight: activeView === view ? 500 : 400,
-                  color: activeView === view ? '#080808' : 'var(--color-text-muted)',
+                  fontWeight: activeView === view ? 600 : 500,
+                  letterSpacing: '0.01em',
+                  color: activeView === view ? '#080808' : 'var(--color-text)',
                   backgroundColor: activeView === view ? 'var(--color-gold)' : 'transparent',
                   transition: 'background-color 0.15s, color 0.15s',
                 }}
@@ -72,12 +79,55 @@ function App() {
         <main className="flex-1 overflow-y-auto">
           {activeView === 'library' ? (
             <>
-              <MediaSearch
-                userId={session.user.id}
-                onSaved={() => setRefreshKey(k => k + 1)}
-                activeTab={typeFilter}
-                onTabChange={setTypeFilter}
-              />
+              <div
+                className="flex items-center justify-between gap-3 px-6 py-3 flex-wrap"
+                style={{ borderBottom: '1px solid var(--color-border)' }}
+              >
+                <div className="flex gap-1.5 flex-wrap">
+                  {TYPE_FILTER_TABS.map(t => (
+                    <button
+                      key={t.value}
+                      onClick={() => setTypeFilter(t.value)}
+                      className="text-xs cursor-pointer"
+                      style={{
+                        padding: '4px 11px',
+                        borderRadius: 999,
+                        border: '1px solid var(--color-border)',
+                        fontWeight: typeFilter === t.value ? 500 : 400,
+                        color: typeFilter === t.value ? 'var(--color-text)' : 'var(--color-text-muted)',
+                        background: typeFilter === t.value ? 'var(--color-border)' : 'transparent',
+                        transition: 'background-color 0.15s, color 0.15s',
+                      }}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => setShowAdd(v => !v)}
+                  className="text-sm font-medium cursor-pointer flex-shrink-0"
+                  style={{
+                    padding: '6px 18px',
+                    borderRadius: 6,
+                    background: showAdd ? 'var(--color-surface)' : 'var(--color-gold)',
+                    color: showAdd ? 'var(--color-text)' : 'var(--color-background)',
+                    border: showAdd ? '1px solid var(--color-border)' : 'none',
+                    transition: 'background-color 0.15s, color 0.15s',
+                  }}
+                >
+                  {showAdd ? 'Close' : '+ Add'}
+                </button>
+              </div>
+
+              {showAdd && (
+                <MediaSearch
+                  userId={session.user.id}
+                  onSaved={() => setRefreshKey(k => k + 1)}
+                  onClose={() => setShowAdd(false)}
+                />
+              )}
+
               <EntryList userId={session.user.id} refreshKey={refreshKey} typeFilter={typeFilter} />
             </>
           ) : (
