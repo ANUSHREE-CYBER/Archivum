@@ -32,6 +32,35 @@ const SELECT_STYLE = {
   color: 'var(--color-text)',
 }
 
+const STATUS_STYLES: Record<string, { bg: string; text: string }> = {
+  completed:     { bg: '#D4AF6A', text: '#080808' },
+  in_progress:   { bg: '#4CAF82', text: '#080808' },
+  plan_to_watch: { bg: '#C0392B', text: '#F2EFE9' },
+  on_hold:       { bg: '#B58DB6', text: '#080808' },
+  dropped:       { bg: '#6B6660', text: '#F2EFE9' },
+}
+
+// Muted/desaturated per-type wayfinding colors — deliberately distinct from the status palette above
+const TYPE_DOT_COLORS: Record<string, string> = {
+  movie:   '#6E8FA3',
+  tv_show: '#5FA3A0',
+  kdrama:  '#C48793',
+  anime:   '#C48F5A',
+  book:    '#8A9A6B',
+  manga:   '#9B7BA3',
+  manhwa:  '#B07A5D',
+}
+
+const TYPE_LABELS: Record<string, string> = {
+  movie:   'Movie',
+  tv_show: 'TV Show',
+  kdrama:  'Kdrama',
+  anime:   'Anime',
+  book:    'Book',
+  manga:   'Manga',
+  manhwa:  'Manhwa',
+}
+
 const cardVariants = {
   hidden: { opacity: 0, y: 14 },
   visible: (i: number) => ({
@@ -184,19 +213,30 @@ export default function EntryList({ userId, refreshKey, typeFilter }: Props) {
               className="group flex flex-col gap-2 text-left cursor-pointer"
               style={{ background: 'none', border: 'none', padding: 0, transformOrigin: 'bottom center' }}
             >
-              {entry.poster_url ? (
-                <img
-                  src={sharpPoster(entry.poster_url)!}
-                  alt={entry.title}
-                  className="w-full rounded object-cover transition-[filter] duration-300 group-hover:brightness-110"
-                  style={{ aspectRatio: '2/3' }}
+              <div className="relative w-full" style={{ aspectRatio: '2/3' }}>
+                {entry.poster_url ? (
+                  <img
+                    src={sharpPoster(entry.poster_url)!}
+                    alt={entry.title}
+                    className="w-full h-full rounded object-cover transition-[filter] duration-300 group-hover:brightness-110"
+                  />
+                ) : (
+                  <div
+                    className="w-full h-full rounded"
+                    style={{ aspectRatio: '2/3', background: 'var(--color-surface)' }}
+                  />
+                )}
+                <span
+                  title={TYPE_LABELS[entry.type] ?? entry.type}
+                  className="absolute top-1.5 left-1.5 rounded-full"
+                  style={{
+                    width: 9,
+                    height: 9,
+                    background: TYPE_DOT_COLORS[entry.type] ?? 'var(--color-text-muted)',
+                    boxShadow: '0 0 0 2px rgba(8,8,8,0.7)',
+                  }}
                 />
-              ) : (
-                <div
-                  className="w-full rounded"
-                  style={{ aspectRatio: '2/3', background: 'var(--color-surface)' }}
-                />
-              )}
+              </div>
               <div className="flex flex-col gap-1">
                 <span
                   className="text-sm font-medium leading-tight line-clamp-2"
@@ -210,11 +250,10 @@ export default function EntryList({ userId, refreshKey, typeFilter }: Props) {
                   </span>
                 )}
                 <span
-                  className="text-xs rounded px-1.5 py-0.5 self-start"
+                  className="text-xs rounded-full px-2 py-0.5 self-start font-medium"
                   style={{
-                    background: 'var(--color-surface)',
-                    color: 'var(--color-text-muted)',
-                    border: '1px solid var(--color-border)',
+                    background: (STATUS_STYLES[entry.status] ?? STATUS_STYLES.dropped).bg,
+                    color: (STATUS_STYLES[entry.status] ?? STATUS_STYLES.dropped).text,
                   }}
                 >
                   {statusLabel(entry.status, entry.type)}
