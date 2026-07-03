@@ -178,12 +178,11 @@ async function searchMangaWithFallback(query: string): Promise<MangaResult[]> {
 interface Props {
   userId: string
   onSaved: () => void
-  activeTab: 'all' | Tab
-  onTabChange: (tab: 'all' | Tab) => void
+  onClose: () => void
 }
 
-export default function MediaSearch({ userId, onSaved, activeTab, onTabChange }: Props) {
-  const tab: Tab | null = activeTab === 'all' ? null : activeTab
+export default function MediaSearch({ userId, onSaved, onClose }: Props) {
+  const [tab, setTab] = useState<Tab>('movie')
   const [showManual, setShowManual] = useState(false)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<TmdbResult[] | AniListResult[] | OpenLibraryDoc[] | MangaResult[]>([])
@@ -197,7 +196,7 @@ export default function MediaSearch({ userId, onSaved, activeTab, onTabChange }:
     if (debounceRef.current) clearTimeout(debounceRef.current)
     setResults([])
 
-    if (!query.trim() || !tab) return
+    if (!query.trim()) return
 
     debounceRef.current = setTimeout(async () => {
       setSearching(true)
@@ -224,8 +223,8 @@ export default function MediaSearch({ userId, onSaved, activeTab, onTabChange }:
     }, 400)
   }, [query, tab])
 
-  function switchTab(next: 'all' | Tab) {
-    onTabChange(next)
+  function switchTab(next: Tab) {
+    setTab(next)
     setQuery('')
     setResults([])
     setSaved(null)
@@ -233,7 +232,7 @@ export default function MediaSearch({ userId, onSaved, activeTab, onTabChange }:
   }
 
   async function handleSelect(result: TmdbResult | AniListResult | OpenLibraryDoc | MangaResult) {
-    if (saving || !tab) return
+    if (saving) return
     setSaving(true)
     setSaved(null)
     setSaveError('')
@@ -335,66 +334,75 @@ export default function MediaSearch({ userId, onSaved, activeTab, onTabChange }:
     tab === 'book'    ? 'Search for a book…' :
     tab === 'manga'   ? 'Search for a manga…' :
     tab === 'manhwa'  ? 'Search for a manhwa…' :
-    tab === 'tv_show' || tab === 'kdrama' ? 'Search for a TV show…' :
-    'Choose a category above to search…'
+    'Search for a TV show…'
 
   return (
     <>
-    <div className="flex flex-col gap-4 w-full max-w-lg mx-auto mt-10 px-4">
-      <div
-        className="flex rounded overflow-hidden self-start"
-        style={{ border: '1px solid var(--color-border)' }}
-      >
-        <button
-          onClick={() => switchTab('all')}
-          className="px-4 py-1.5 text-sm font-medium cursor-pointer"
-          style={{
-            background: activeTab === 'all' ? 'var(--color-gold)' : 'var(--color-surface)',
-            color: activeTab === 'all' ? 'var(--color-background)' : 'var(--color-text-muted)',
-          }}
+    <div
+      className="flex flex-col gap-4 w-full max-w-lg mx-auto px-4 py-5 mt-2 rounded-lg"
+      style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div
+          className="flex rounded overflow-hidden flex-wrap"
+          style={{ border: '1px solid var(--color-border)' }}
         >
-          All
+          {TABS.map(t => (
+            <button
+              key={t.value}
+              onClick={() => switchTab(t.value)}
+              className="px-3 py-1.5 text-sm font-medium cursor-pointer"
+              style={{
+                background: tab === t.value ? 'var(--color-gold)' : 'var(--color-background)',
+                color: tab === t.value ? 'var(--color-background)' : 'var(--color-text-muted)',
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        <button
+          onClick={onClose}
+          className="text-xs cursor-pointer hover:opacity-80 flex-shrink-0"
+          style={{ background: 'none', border: 'none', padding: '4px', color: 'var(--color-text-muted)' }}
+          aria-label="Close"
+        >
+          ✕
         </button>
-        {TABS.map(t => (
-          <button
-            key={t.value}
-            onClick={() => switchTab(t.value)}
-            className="px-4 py-1.5 text-sm font-medium cursor-pointer"
-            style={{
-              background: activeTab === t.value ? 'var(--color-gold)' : 'var(--color-surface)',
-              color: activeTab === t.value ? 'var(--color-background)' : 'var(--color-text-muted)',
-            }}
-          >
-            {t.label}
-          </button>
-        ))}
       </div>
 
-      <button
-        onClick={() => setShowManual(true)}
-        className="text-xs self-start cursor-pointer hover:opacity-80"
-        style={{ background: 'none', border: 'none', padding: 0, color: 'var(--color-text-muted)' }}
-      >
-        Can't find it? Add manually
-      </button>
+      <div className="flex gap-2">
+        <input
+          type="text"
+          placeholder={placeholder}
+          value={query}
+          onChange={e => {
+            setSaved(null)
+            setSaveError('')
+            setQuery(e.target.value)
+          }}
+          className="rounded px-3 py-2 outline-none flex-1"
+          style={{
+            background: 'var(--color-background)',
+            border: '1px solid var(--color-border)',
+            color: 'var(--color-text)',
+          }}
+        />
 
-      <input
-        type="text"
-        placeholder={placeholder}
-        value={query}
-        disabled={!tab}
-        onChange={e => {
-          setSaved(null)
-          setSaveError('')
-          setQuery(e.target.value)
-        }}
-        className="rounded px-3 py-2 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
-        style={{
-          background: 'var(--color-surface)',
-          border: '1px solid var(--color-border)',
-          color: 'var(--color-text)',
-        }}
-      />
+        <button
+          onClick={() => setShowManual(true)}
+          className="text-xs cursor-pointer hover:bg-[var(--color-gold)] hover:text-[var(--color-background)] whitespace-nowrap rounded px-3 py-2 flex-shrink-0"
+          style={{
+            background: 'none',
+            border: '1px solid var(--color-gold)',
+            color: 'var(--color-gold)',
+            transition: 'background-color 0.15s, color 0.15s',
+          }}
+        >
+          Add manually
+        </button>
+      </div>
 
       {searching && (
         <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
@@ -470,7 +478,7 @@ export default function MediaSearch({ userId, onSaved, activeTab, onTabChange }:
                   disabled={saving}
                   className="flex items-center gap-3 w-full text-left rounded px-3 py-2 cursor-pointer hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
                   style={{
-                    background: 'var(--color-surface)',
+                    background: 'var(--color-background)',
                     border: '1px solid var(--color-border)',
                     color: 'var(--color-text)',
                   }}
