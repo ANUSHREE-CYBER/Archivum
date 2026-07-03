@@ -38,6 +38,7 @@ interface Props {
   entry: EditableEntry
   onClose: () => void
   onSaved: (updated: Pick<EditableEntry, 'id' | 'status' | 'rating' | 'metadata'>) => void
+  onDeleted: (id: string) => void
 }
 
 function NumField({ label, value, onChange }: {
@@ -71,7 +72,7 @@ function sharpPoster(url: string | null): string | null {
   return url.replace('/w92', '/w342')
 }
 
-export default function EntryEditModal({ entry, onClose, onSaved }: Props) {
+export default function EntryEditModal({ entry, onClose, onSaved, onDeleted }: Props) {
   const meta = (entry.metadata ?? {}) as Record<string, unknown>
 
   const [status, setStatus]           = useState<string>(entry.status)
@@ -84,6 +85,9 @@ export default function EntryEditModal({ entry, onClose, onSaved }: Props) {
   const [chapter, setChapter]         = useState<number | null>(typeof meta.chapter     === 'number' ? meta.chapter     : null)
   const [saving, setSaving]           = useState(false)
   const [error, setError]             = useState('')
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [deleting, setDeleting]                 = useState(false)
+  const [deleteError, setDeleteError]           = useState('')
   const backdropRef = useRef<HTMLDivElement>(null)
 
   const { type } = entry
@@ -126,6 +130,22 @@ export default function EntryEditModal({ entry, onClose, onSaved }: Props) {
       setError(err.message)
     } else {
       onSaved({ id: entry.id, status, rating, metadata: updatedMetadata })
+      onClose()
+    }
+  }
+
+  async function handleDelete() {
+    if (deleting) return
+    setDeleting(true)
+    setDeleteError('')
+
+    const { error: err } = await supabase.from('entries').delete().eq('id', entry.id)
+
+    setDeleting(false)
+    if (err) {
+      setDeleteError(err.message)
+    } else {
+      onDeleted(entry.id)
       onClose()
     }
   }
@@ -268,6 +288,53 @@ export default function EntryEditModal({ entry, onClose, onSaved }: Props) {
           >
             {saving ? 'Saving…' : 'Save'}
           </button>
+        </div>
+
+        {/* delete — separated from the primary actions so it isn't misclicked */}
+        <div className="pt-4 flex flex-col gap-2" style={{ borderTop: '1px solid var(--color-border)' }}>
+          {confirmingDelete ? (
+            <>
+              <p className="text-sm" style={{ color: 'var(--color-danger)' }}>
+                Delete "{entry.title}"? This can't be undone.
+              </p>
+              {deleteError && (
+                <p className="text-sm" style={{ color: 'var(--color-danger)' }}>{deleteError}</p>
+              )}
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => setConfirmingDelete(false)}
+                  disabled={deleting}
+                  className="px-4 py-1.5 rounded text-sm cursor-pointer hover:opacity-80 disabled:opacity-50"
+                  style={{
+                    background: 'var(--color-surface)',
+                    border: '1px solid var(--color-border)',
+                    color: 'var(--color-text)',
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="px-4 py-1.5 rounded text-sm font-semibold cursor-pointer hover:opacity-90 disabled:opacity-50"
+                  style={{
+                    background: 'var(--color-danger)',
+                    color: '#F2EFE9',
+                  }}
+                >
+                  {deleting ? 'Deleting…' : 'Delete'}
+                </button>
+              </div>
+            </>
+          ) : (
+            <button
+              onClick={() => setConfirmingDelete(true)}
+              className="text-sm self-start cursor-pointer hover:opacity-80"
+              style={{ background: 'none', border: 'none', padding: 0, color: 'var(--color-danger)' }}
+            >
+              🗑 Delete
+            </button>
+          )}
         </div>
       </div>
     </div>

@@ -26,6 +26,19 @@ function sharpPoster(url: string | null): string | null {
   return url.replace('/w92', '/w342')
 }
 
+// Tabs match on type, but movie/tv_show also pick up entries of other
+// types whose inferred format crosses over (e.g. an anime film under Movie).
+// Kdrama is explicitly excluded from the TV Show crossover so it stays in its own tab.
+function matchesTypeTab(entry: EditableEntry, tab: 'all' | Tab): boolean {
+  if (tab === 'all') return true
+  if (tab === 'movie') return entry.type === 'movie' || entry.format === 'movie'
+  if (tab === 'tv_show') {
+    if (entry.type === 'kdrama') return false
+    return entry.type === 'tv_show' || entry.format === 'series'
+  }
+  return entry.type === tab
+}
+
 const SELECT_STYLE = {
   background: 'var(--color-surface)',
   border: '1px solid var(--color-border)',
@@ -205,8 +218,7 @@ export default function EntryList({ userId, refreshKey, typeFilter }: Props) {
   }, [entries])
 
   const visible = useMemo(() => {
-    let result = entries
-    if (typeFilter !== 'all') result = result.filter(e => e.type === typeFilter)
+    let result = entries.filter(e => matchesTypeTab(e, typeFilter))
     if (statusFilter) result = result.filter(e => e.status === statusFilter)
     if (genreFilter)  result = result.filter(e => e.genres?.includes(genreFilter) ?? false)
     if (sortBy === 'year_desc') {
@@ -229,7 +241,10 @@ export default function EntryList({ userId, refreshKey, typeFilter }: Props) {
     return result
   }, [entries, typeFilter, statusFilter, genreFilter, sortBy])
 
-  const inProgress = useMemo(() => entries.filter(e => e.status === 'in_progress'), [entries])
+  const inProgress = useMemo(
+    () => entries.filter(e => e.status === 'in_progress' && matchesTypeTab(e, typeFilter)),
+    [entries, typeFilter]
+  )
 
   function handleSaved(updated: Pick<EditableEntry, 'id' | 'status' | 'rating' | 'metadata'>) {
     setEntries(prev =>
@@ -325,6 +340,10 @@ export default function EntryList({ userId, refreshKey, typeFilter }: Props) {
           onClose={() => setEditing(null)}
           onSaved={updated => {
             handleSaved(updated)
+            setEditing(null)
+          }}
+          onDeleted={id => {
+            setEntries(prev => prev.filter(e => e.id !== id))
             setEditing(null)
           }}
         />
