@@ -3,16 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../lib/supabase'
 import EntryEditModal, { STATUS_OPTIONS, statusLabel } from './EntryEditModal'
 import type { EditableEntry } from './EntryEditModal'
-
-const TYPE_OPTIONS = [
-  { value: 'movie',   label: 'Movie' },
-  { value: 'tv_show', label: 'TV Show' },
-  { value: 'kdrama',  label: 'Kdrama' },
-  { value: 'anime',   label: 'Anime' },
-  { value: 'book',    label: 'Book' },
-  { value: 'manga',   label: 'Manga' },
-  { value: 'manhwa',  label: 'Manhwa' },
-]
+import type { Tab } from './MediaSearch'
 
 const SORT_OPTIONS = [
   { value: 'newest',    label: 'Newest Added' },
@@ -57,13 +48,13 @@ const cardVariants = {
 interface Props {
   userId: string
   refreshKey: number
+  typeFilter: 'all' | Tab
 }
 
-export default function EntryList({ userId, refreshKey }: Props) {
+export default function EntryList({ userId, refreshKey, typeFilter }: Props) {
   const [entries, setEntries]         = useState<EditableEntry[]>([])
   const [loading, setLoading]         = useState(true)
   const [editing, setEditing]         = useState<EditableEntry | null>(null)
-  const [typeFilter,   setTypeFilter]  = useState('')
   const [statusFilter, setStatusFilter]= useState('')
   const [genreFilter,  setGenreFilter] = useState('')
   const [sortBy,       setSortBy]      = useState('newest')
@@ -72,7 +63,7 @@ export default function EntryList({ userId, refreshKey }: Props) {
     setLoading(true)
     supabase
       .from('entries')
-      .select('id, title, year, poster_url, status, rating, type, metadata, genres')
+      .select('id, title, year, poster_url, status, rating, type, format, metadata, genres')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .then(({ data }) => {
@@ -91,7 +82,7 @@ export default function EntryList({ userId, refreshKey }: Props) {
 
   const visible = useMemo(() => {
     let result = entries
-    if (typeFilter)   result = result.filter(e => e.type   === typeFilter)
+    if (typeFilter !== 'all') result = result.filter(e => e.type === typeFilter)
     if (statusFilter) result = result.filter(e => e.status === statusFilter)
     if (genreFilter)  result = result.filter(e => e.genres?.includes(genreFilter) ?? false)
     if (sortBy === 'year_desc') {
@@ -134,18 +125,6 @@ export default function EntryList({ userId, refreshKey }: Props) {
     <>
       {/* filter + sort bar */}
       <div className="flex flex-wrap gap-2 px-6 pb-4">
-        <select
-          value={typeFilter}
-          onChange={e => setTypeFilter(e.target.value)}
-          className="rounded px-2 py-1.5 text-xs outline-none cursor-pointer"
-          style={SELECT_STYLE}
-        >
-          <option value="">All Types</option>
-          {TYPE_OPTIONS.map(o => (
-            <option key={o.value} value={o.value}>{o.label}</option>
-          ))}
-        </select>
-
         <select
           value={statusFilter}
           onChange={e => setStatusFilter(e.target.value)}

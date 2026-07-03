@@ -29,6 +29,7 @@ export interface EditableEntry {
   status: string
   rating: number | null
   type: string
+  format?: 'movie' | 'series' | 'comic' | null
   metadata: Record<string, unknown> | null
   genres: string[] | null
 }

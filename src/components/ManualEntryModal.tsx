@@ -55,6 +55,7 @@ export default function ManualEntryModal({ userId, onClose, onSaved }: Props) {
       user_id:    userId,
       title:      title.trim(),
       type,
+      format:     null,
       year:       year || null,
       poster_url: posterUrl.trim() || null,
       genres:     genresList && genresList.length > 0 ? genresList : null,
