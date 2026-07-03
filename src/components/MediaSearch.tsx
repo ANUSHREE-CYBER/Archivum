@@ -5,9 +5,9 @@ import ManualEntryModal from './ManualEntryModal'
 const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY as string
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w342'
 
-type Tab = 'movie' | 'tv_show' | 'kdrama' | 'anime' | 'book' | 'manga' | 'manhwa'
+export type Tab = 'movie' | 'tv_show' | 'kdrama' | 'anime' | 'book' | 'manga' | 'manhwa'
 
-const TABS: { value: Tab; label: string }[] = [
+export const TABS: { value: Tab; label: string }[] = [
   { value: 'movie',   label: 'Movie' },
   { value: 'tv_show', label: 'TV Show' },
   { value: 'kdrama',  label: 'Kdrama' },
@@ -66,6 +66,7 @@ interface AniListResult {
   coverImage: { large: string | null; medium: string | null }
   startDate: { year: number | null }
   genres: string[]
+  format: string
 }
 
 const ANILIST_QUERY = `
@@ -77,10 +78,19 @@ const ANILIST_QUERY = `
         coverImage { large medium }
         startDate { year }
         genres
+        format
       }
     }
   }
 `
+
+const ANILIST_SERIES_FORMATS = new Set(['TV', 'TV_SHORT', 'ONA', 'OVA', 'SPECIAL'])
+
+function anilistFormat(format: string): 'movie' | 'series' | null {
+  if (format === 'MOVIE') return 'movie'
+  if (ANILIST_SERIES_FORMATS.has(format)) return 'series'
+  return null
+}
 
 async function searchAniList(search: string): Promise<AniListResult[]> {
   const res = await fetch('https://graphql.anilist.co', {
@@ -168,10 +178,12 @@ async function searchMangaWithFallback(query: string): Promise<MangaResult[]> {
 interface Props {
   userId: string
   onSaved: () => void
+  activeTab: 'all' | Tab
+  onTabChange: (tab: 'all' | Tab) => void
 }
 
-export default function MediaSearch({ userId, onSaved }: Props) {
-  const [tab, setTab]           = useState<Tab>('movie')
+export default function MediaSearch({ userId, onSaved, activeTab, onTabChange }: Props) {
+  const tab: Tab | null = activeTab === 'all' ? null : activeTab
   const [showManual, setShowManual] = useState(false)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<TmdbResult[] | AniListResult[] | OpenLibraryDoc[] | MangaResult[]>([])
@@ -185,7 +197,7 @@ export default function MediaSearch({ userId, onSaved }: Props) {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     setResults([])
 
-    if (!query.trim()) return
+    if (!query.trim() || !tab) return
 
     debounceRef.current = setTimeout(async () => {
       setSearching(true)
@@ -212,8 +224,8 @@ export default function MediaSearch({ userId, onSaved }: Props) {
     }, 400)
   }, [query, tab])
 
-  function switchTab(next: Tab) {
-    setTab(next)
+  function switchTab(next: 'all' | Tab) {
+    onTabChange(next)
     setQuery('')
     setResults([])
     setSaved(null)
@@ -221,7 +233,7 @@ export default function MediaSearch({ userId, onSaved }: Props) {
   }
 
   async function handleSelect(result: TmdbResult | AniListResult | OpenLibraryDoc | MangaResult) {
-    if (saving) return
+    if (saving || !tab) return
     setSaving(true)
     setSaved(null)
     setSaveError('')
@@ -233,6 +245,7 @@ export default function MediaSearch({ userId, onSaved }: Props) {
     let source_id: string
     let metadata: Record<string, unknown> | undefined
     let genres: string[] | null = null
+    let format: 'movie' | 'series' | 'comic' | null = null
 
     if (tab === 'anime') {
       const a = result as AniListResult
@@ -242,6 +255,7 @@ export default function MediaSearch({ userId, onSaved }: Props) {
       source_api = 'anilist'
       source_id  = String(a.id)
       genres     = a.genres.length > 0 ? a.genres : null
+      format     = anilistFormat(a.format)
     } else if (tab === 'book') {
       const b = result as OpenLibraryDoc
       const author = b.author_name?.[0] ?? null
@@ -253,6 +267,7 @@ export default function MediaSearch({ userId, onSaved }: Props) {
       metadata   = author ? { author } : undefined
     } else if (tab === 'manga' || tab === 'manhwa') {
       const mr = result as MangaResult
+      format = 'comic'
       if (mr._source === 'anilist') {
         const a = mr as TaggedAniList
         title      = a.title.english || a.title.romaji
@@ -282,6 +297,7 @@ export default function MediaSearch({ userId, onSaved }: Props) {
       source_id  = String(t.id)
       genres     = tmdbGenreNames(t.genre_ids ?? [], tab === 'movie')
       if (genres.length === 0) genres = null
+      format     = tab === 'movie' ? 'movie' : 'series'
     }
 
     const { error } = await supabase.from('entries').insert({
@@ -290,6 +306,7 @@ export default function MediaSearch({ userId, onSaved }: Props) {
       year,
       poster_url,
       type: tab,
+      format,
       status: 'plan_to_watch',
       source_api,
       source_id,
@@ -318,7 +335,8 @@ export default function MediaSearch({ userId, onSaved }: Props) {
     tab === 'book'    ? 'Search for a book…' :
     tab === 'manga'   ? 'Search for a manga…' :
     tab === 'manhwa'  ? 'Search for a manhwa…' :
-    'Search for a TV show…'
+    tab === 'tv_show' || tab === 'kdrama' ? 'Search for a TV show…' :
+    'Choose a category above to search…'
 
   return (
     <>
@@ -327,14 +345,24 @@ export default function MediaSearch({ userId, onSaved }: Props) {
         className="flex rounded overflow-hidden self-start"
         style={{ border: '1px solid var(--color-border)' }}
       >
+        <button
+          onClick={() => switchTab('all')}
+          className="px-4 py-1.5 text-sm font-medium cursor-pointer"
+          style={{
+            background: activeTab === 'all' ? 'var(--color-gold)' : 'var(--color-surface)',
+            color: activeTab === 'all' ? 'var(--color-background)' : 'var(--color-text-muted)',
+          }}
+        >
+          All
+        </button>
         {TABS.map(t => (
           <button
             key={t.value}
             onClick={() => switchTab(t.value)}
             className="px-4 py-1.5 text-sm font-medium cursor-pointer"
             style={{
-              background: tab === t.value ? 'var(--color-gold)' : 'var(--color-surface)',
-              color: tab === t.value ? 'var(--color-background)' : 'var(--color-text-muted)',
+              background: activeTab === t.value ? 'var(--color-gold)' : 'var(--color-surface)',
+              color: activeTab === t.value ? 'var(--color-background)' : 'var(--color-text-muted)',
             }}
           >
             {t.label}
@@ -354,12 +382,13 @@ export default function MediaSearch({ userId, onSaved }: Props) {
         type="text"
         placeholder={placeholder}
         value={query}
+        disabled={!tab}
         onChange={e => {
           setSaved(null)
           setSaveError('')
           setQuery(e.target.value)
         }}
-        className="rounded px-3 py-2 outline-none"
+        className="rounded px-3 py-2 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
         style={{
           background: 'var(--color-surface)',
           border: '1px solid var(--color-border)',
