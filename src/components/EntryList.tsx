@@ -87,7 +87,14 @@ const cardVariants = {
   }),
 }
 
-function EntryCard({ entry, index, onClick }: { entry: EditableEntry; index: number; onClick: () => void }) {
+function EntryCard({ entry, index, onClick, selectionMode, selected, onToggleSelect }: {
+  entry: EditableEntry
+  index: number
+  onClick: () => void
+  selectionMode?: boolean
+  selected?: boolean
+  onToggleSelect?: () => void
+}) {
   const [imgError, setImgError] = useState(false)
   const showFallback = !entry.poster_url || imgError
 
@@ -104,7 +111,7 @@ function EntryCard({ entry, index, onClick }: { entry: EditableEntry; index: num
         boxShadow: '0 0 20px 3px rgba(212,175,106,0.35)',
         transition: { duration: 0.25, ease: 'easeOut' },
       }}
-      onClick={onClick}
+      onClick={() => (selectionMode ? onToggleSelect?.() : onClick())}
       className="group flex flex-col gap-2 text-left cursor-pointer w-full"
       style={{
         background: 'none',
@@ -112,7 +119,9 @@ function EntryCard({ entry, index, onClick }: { entry: EditableEntry; index: num
         padding: 0,
         borderRadius: 6,
         boxShadow: '0 0 0px 0px rgba(212,175,106,0)',
+        opacity: selectionMode && !selected ? 0.7 : 1,
         transformOrigin: 'bottom center',
+        transition: 'opacity 0.2s ease',
       }}
     >
       <div className="relative w-full overflow-hidden rounded" style={{ aspectRatio: '2/3' }}>
@@ -150,6 +159,23 @@ function EntryCard({ entry, index, onClick }: { entry: EditableEntry; index: num
             boxShadow: '0 0 0 2px rgba(8,8,8,0.7)',
           }}
         />
+        {selectionMode && (
+          <span
+            className="absolute top-1.5 right-1.5 rounded-full flex items-center justify-center"
+            style={{
+              width: 20,
+              height: 20,
+              border: '2px solid var(--color-gold)',
+              background: selected ? 'var(--color-gold)' : 'rgba(8,8,8,0.55)',
+            }}
+          >
+            {selected && (
+              <span style={{ color: 'var(--color-background)', fontSize: 12, lineHeight: 1, fontWeight: 700 }}>
+                ✓
+              </span>
+            )}
+          </span>
+        )}
       </div>
       <div className="flex flex-col gap-1">
         <span
@@ -195,6 +221,11 @@ export default function EntryList({ userId, refreshKey, typeFilter }: Props) {
   const [statusFilter, setStatusFilter]= useState('')
   const [genreFilter,  setGenreFilter] = useState('')
   const [sortBy,       setSortBy]      = useState('newest')
+  const [selectionMode, setSelectionMode]     = useState(false)
+  const [selectedIds, setSelectedIds]         = useState<Set<string>>(new Set())
+  const [confirmingBulkDelete, setConfirmingBulkDelete] = useState(false)
+  const [bulkDeleting, setBulkDeleting]       = useState(false)
+  const [bulkDeleteError, setBulkDeleteError] = useState('')
 
   useEffect(() => {
     setLoading(true)
@@ -252,6 +283,51 @@ export default function EntryList({ userId, refreshKey, typeFilter }: Props) {
     )
   }
 
+  function toggleSelect(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function exitSelectionMode() {
+    setSelectionMode(false)
+    setSelectedIds(new Set())
+    setConfirmingBulkDelete(false)
+    setBulkDeleteError('')
+  }
+
+  async function handleBulkDelete() {
+    if (bulkDeleting) return
+    setBulkDeleting(true)
+    setBulkDeleteError('')
+
+    const ids = [...selectedIds]
+    const { data, error } = await supabase.from('entries').delete().in('id', ids).select('id')
+
+    setBulkDeleting(false)
+
+    if (error) {
+      setBulkDeleteError(error.message)
+      return
+    }
+
+    const deletedIds = new Set((data ?? []).map(row => row.id as string))
+    const failedIds = ids.filter(id => !deletedIds.has(id))
+
+    setEntries(prev => prev.filter(e => !deletedIds.has(e.id)))
+
+    if (failedIds.length > 0) {
+      setBulkDeleteError(`Failed to delete ${failedIds.length} ${failedIds.length === 1 ? 'entry' : 'entries'}.`)
+      setSelectedIds(new Set(failedIds))
+      setConfirmingBulkDelete(false)
+    } else {
+      exitSelectionMode()
+    }
+  }
+
   if (loading) return null
 
   if (entries.length === 0) {
@@ -280,7 +356,7 @@ export default function EntryList({ userId, refreshKey, typeFilter }: Props) {
       )}
 
       {/* filter + sort bar */}
-      <div className="flex flex-wrap gap-2 px-6 pb-4">
+      <div className="flex flex-wrap gap-2 px-6 pb-2 items-center">
         <select
           value={statusFilter}
           onChange={e => setStatusFilter(e.target.value)}
@@ -305,17 +381,80 @@ export default function EntryList({ userId, refreshKey, typeFilter }: Props) {
           </select>
         )}
 
-        <select
-          value={sortBy}
-          onChange={e => setSortBy(e.target.value)}
-          className="rounded px-2 py-1.5 text-xs outline-none cursor-pointer ml-auto"
-          style={SELECT_STYLE}
-        >
-          {SORT_OPTIONS.map(o => (
-            <option key={o.value} value={o.value}>{o.label}</option>
-          ))}
-        </select>
+        <div className="flex gap-2 items-center ml-auto">
+          {confirmingBulkDelete ? (
+            <>
+              <span className="text-xs" style={{ color: 'var(--color-danger)' }}>
+                Delete {selectedIds.size} {selectedIds.size === 1 ? 'entry' : 'entries'}? This can't be undone.
+              </span>
+              <button
+                onClick={() => setConfirmingBulkDelete(false)}
+                disabled={bulkDeleting}
+                className="rounded px-2.5 py-1.5 text-xs cursor-pointer hover:opacity-80 disabled:opacity-50"
+                style={SELECT_STYLE}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBulkDelete}
+                disabled={bulkDeleting}
+                className="rounded px-2.5 py-1.5 text-xs font-semibold cursor-pointer hover:opacity-90 disabled:opacity-50"
+                style={{ background: 'var(--color-danger)', color: '#F2EFE9', border: 'none' }}
+              >
+                {bulkDeleting ? 'Deleting…' : 'Delete'}
+              </button>
+            </>
+          ) : selectionMode ? (
+            <>
+              <span
+                className="rounded px-2.5 py-1.5 text-xs"
+                style={{ ...SELECT_STYLE, color: 'var(--color-text-muted)' }}
+              >
+                {selectedIds.size} selected
+              </span>
+              {selectedIds.size > 0 && (
+                <button
+                  onClick={() => setConfirmingBulkDelete(true)}
+                  className="rounded px-2.5 py-1.5 text-xs font-semibold cursor-pointer hover:opacity-90"
+                  style={{ background: 'var(--color-danger)', color: '#F2EFE9', border: 'none' }}
+                >
+                  Delete
+                </button>
+              )}
+              <button
+                onClick={exitSelectionMode}
+                className="rounded px-2.5 py-1.5 text-xs cursor-pointer hover:opacity-80"
+                style={SELECT_STYLE}
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => setSelectionMode(true)}
+              className="rounded px-2.5 py-1.5 text-xs cursor-pointer hover:opacity-80"
+              style={SELECT_STYLE}
+            >
+              Select
+            </button>
+          )}
+
+          <select
+            value={sortBy}
+            onChange={e => setSortBy(e.target.value)}
+            className="rounded px-2 py-1.5 text-xs outline-none cursor-pointer"
+            style={SELECT_STYLE}
+          >
+            {SORT_OPTIONS.map(o => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        </div>
       </div>
+
+      {bulkDeleteError && (
+        <p className="text-xs px-6 pb-2" style={{ color: 'var(--color-danger)' }}>{bulkDeleteError}</p>
+      )}
 
       {visible.length === 0 ? (
         <p className="text-center text-sm mt-8" style={{ color: 'var(--color-text-muted)' }}>
@@ -328,7 +467,15 @@ export default function EntryList({ userId, refreshKey, typeFilter }: Props) {
         >
           <AnimatePresence mode="popLayout">
           {visible.map((entry, i) => (
-            <EntryCard key={entry.id} entry={entry} index={i} onClick={() => setEditing(entry)} />
+            <EntryCard
+              key={entry.id}
+              entry={entry}
+              index={i}
+              onClick={() => setEditing(entry)}
+              selectionMode={selectionMode}
+              selected={selectedIds.has(entry.id)}
+              onToggleSelect={() => toggleSelect(entry.id)}
+            />
           ))}
           </AnimatePresence>
         </div>
