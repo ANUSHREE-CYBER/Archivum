@@ -75,14 +75,14 @@ const TYPE_LABELS: Record<string, string> = {
 }
 
 const cardVariants = {
-  hidden: { opacity: 0, y: 14 },
+  hidden: { opacity: 0, y: 20 },
   visible: (i: number) => ({
     opacity: 1,
     y: 0,
     transition: {
-      delay: Math.min(i * 0.035, 0.35),
-      duration: 0.32,
-      ease: [0.22, 1, 0.36, 1],
+      delay: Math.min(i * 0.05, 0.5),
+      duration: 0.3,
+      ease: 'easeOut',
     },
   }),
 }
