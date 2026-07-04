@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
+import { Toaster } from 'sonner'
 import { supabase } from './lib/supabase'
 import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage' // kept for reference
@@ -42,6 +43,17 @@ function App() {
   return (
     <>
       <SmoothCursor />
+      <Toaster
+        position="bottom-right"
+        duration={3000}
+        toastOptions={{
+          style: {
+            background: 'var(--color-surface)',
+            border: '1px solid var(--color-gold)',
+            color: 'var(--color-text)',
+          },
+        }}
+      />
       <div className="vault-ambient-glow" />
       {/* relative + z-index so content paints above the fixed glow (fixed elements stack above static ones by default) */}
       <div className="flex flex-col h-full relative" style={{ zIndex: 1 }}>

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { toast } from 'sonner'
 import { supabase } from '../lib/supabase'
 import EntryEditModal, { STATUS_OPTIONS, statusLabel } from './EntryEditModal'
 import type { EditableEntry } from './EntryEditModal'
@@ -340,6 +341,7 @@ export default function EntryList({ userId, refreshKey, typeFilter }: Props) {
 
     if (error) {
       setBulkDeleteError(error.message)
+      toast.error(error.message, { style: { border: '1px solid var(--color-danger)' } })
       return
     }
 
@@ -348,8 +350,14 @@ export default function EntryList({ userId, refreshKey, typeFilter }: Props) {
 
     setEntries(prev => prev.filter(e => !deletedIds.has(e.id)))
 
+    if (deletedIds.size > 0) {
+      toast.success(`Deleted ${deletedIds.size} ${deletedIds.size === 1 ? 'entry' : 'entries'}`)
+    }
+
     if (failedIds.length > 0) {
-      setBulkDeleteError(`Failed to delete ${failedIds.length} ${failedIds.length === 1 ? 'entry' : 'entries'}.`)
+      const message = `Failed to delete ${failedIds.length} ${failedIds.length === 1 ? 'entry' : 'entries'}.`
+      setBulkDeleteError(message)
+      toast.error(message, { style: { border: '1px solid var(--color-danger)' } })
       setSelectedIds(new Set(failedIds))
       setConfirmingBulkDelete(false)
     } else {
