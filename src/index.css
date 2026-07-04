@@ -62,7 +62,7 @@
     opacity: 1;
   }
   100% {
-    transform: rotate(var(--angle)) translateX(-1500px);
+    transform: rotate(var(--angle)) translateX(var(--meteor-distance, -1500px));
     opacity: 0;
   }
 }
