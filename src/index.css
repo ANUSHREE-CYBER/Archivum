@@ -30,19 +30,14 @@
   }
 }
 
-/* Mesh gradient background for the vault page. The dark scrim is listed first
-   (top layer) so it sits over the mesh image but still behind all DOM content;
-   background-attachment/size/position/repeat each have a single value, which
-   CSS cycles across both background-image layers automatically. */
+/* position + z-index together give this its own stacking context, so the
+   meteors (z-index: -1) are guaranteed to paint behind the static
+   header/main/footer content without needing to touch those elements. */
 .vault-page {
   background-color: #080808;
-  background-image:
-    linear-gradient(rgba(8, 8, 8, 0.5), rgba(8, 8, 8, 0.5)),
-    url('./assets/mesh-560.png');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  background-attachment: fixed;
+  position: relative;
+  z-index: 0;
+  overflow: hidden;
 }
 
 .card-entering,
@@ -56,6 +51,24 @@
 .card-visible {
   opacity: 1;
   transform: translateY(0);
+}
+
+@keyframes meteor {
+  0% {
+    transform: rotate(var(--angle)) translateX(0);
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    transform: rotate(var(--angle)) translateX(-500px);
+    opacity: 0;
+  }
+}
+
+.animate-meteor {
+  animation: meteor 5s linear infinite;
 }
 
 @keyframes skeleton-shimmer {
