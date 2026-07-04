@@ -75,24 +75,14 @@ const TYPE_LABELS: Record<string, string> = {
   manhwa:  'Manhwa',
 }
 
-// Only the first viewport-worth of cards cascade individually; cards past that
-// stay hidden until the stagger window ends, then appear together as one group
-// so nothing below the fold pops in ahead of the cascade above it.
-const STAGGER_CARD_LIMIT = 12
-const STAGGER_WINDOW = 0.6
-
-const cardVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: (i: number) => ({
-    opacity: 1,
-    y: 0,
-    transition: {
-      delay: i < STAGGER_CARD_LIMIT ? i * 0.05 : STAGGER_WINDOW,
-      duration: 0.3,
-      ease: 'easeOut',
-    },
-  }),
-}
+// Entrance is plain CSS (transition + transition-delay), not Framer Motion —
+// mixing FM's own transform ownership (from `layout`) with FM-driven entrance
+// transforms was the source of the stagger timing bugs. Each card flips from
+// .card-entering to .card-visible one frame after its own mount, so persisting
+// cards (still mounted across a filter change) never replay the entrance —
+// only newly-mounted cards do. The per-card transition-delay is what cascades.
+const CARD_STAGGER_STEP_MS = 40
+const CARD_STAGGER_CAP_MS = 500
 
 function EntryCard({ entry, index, onClick, selectionMode, selected, onToggleSelect }: {
   entry: EditableEntry
@@ -103,15 +93,21 @@ function EntryCard({ entry, index, onClick, selectionMode, selected, onToggleSel
   onToggleSelect?: () => void
 }) {
   const [imgError, setImgError] = useState(false)
+  const [entered, setEntered] = useState(false)
   const showFallback = !entry.poster_url || imgError
 
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setEntered(true))
+    return () => cancelAnimationFrame(raf)
+  }, [])
+
   return (
+    <div
+      className={`w-full ${entered ? 'card-visible' : 'card-entering'}`}
+      style={{ transitionDelay: `${Math.min(index * CARD_STAGGER_STEP_MS, CARD_STAGGER_CAP_MS)}ms` }}
+    >
     <motion.button
       layout
-      custom={index}
-      variants={cardVariants}
-      initial="hidden"
-      animate="visible"
       exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.15 } }}
       transition={{ layout: { type: 'spring', stiffness: 200, damping: 25 } }}
       whileHover={{
@@ -214,6 +210,7 @@ function EntryCard({ entry, index, onClick, selectionMode, selected, onToggleSel
         )}
       </div>
     </motion.button>
+    </div>
   )
 }
 

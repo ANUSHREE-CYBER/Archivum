@@ -30,19 +30,32 @@
   }
 }
 
-/* Painted as a background-image layer on the vault's outer (non-scrolling)
-   wrapper rather than a separate positioned element, so there's no z-index/
-   stacking-order to get wrong — background-image always paints above
-   background-color and below the element's own children. */
+/* Mesh gradient background for the vault page. The dark scrim is listed first
+   (top layer) so it sits over the mesh image but still behind all DOM content;
+   background-attachment/size/position/repeat each have a single value, which
+   CSS cycles across both background-image layers automatically. */
 .vault-page {
   background-color: #080808;
-  background-image: radial-gradient(
-    ellipse 60% 40% at 50% 30%,
-    rgba(212, 175, 106, 0.12) 0%,
-    rgba(212, 175, 106, 0) 70%,
-    transparent 100%
-  );
+  background-image:
+    linear-gradient(rgba(8, 8, 8, 0.5), rgba(8, 8, 8, 0.5)),
+    url('./assets/mesh-560.png');
+  background-size: cover;
+  background-position: center;
   background-repeat: no-repeat;
+  background-attachment: fixed;
+}
+
+.card-entering,
+.card-visible {
+  transition: opacity 0.4s ease-out, transform 0.4s ease-out;
+}
+.card-entering {
+  opacity: 0;
+  transform: translateY(12px);
+}
+.card-visible {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 @keyframes skeleton-shimmer {
