@@ -3,6 +3,7 @@ import { useState } from 'react'
 interface MeteorStyle {
   top: string
   left: string
+  distance?: string
   animationDelay: string
   animationDuration: string
 }
@@ -17,16 +18,34 @@ export default function Meteors({ number = 20, angle = 215 }: Props) {
   // picked once per mount, and there's no SSR here to cause a hydration mismatch.
   //
   // Meteors travel down-left (angle 215), so top-edge-only spawning leaves the
-  // bottom-left of the page empty. ~40% spawn from the right edge instead,
-  // streaking down-left to fill that void.
+  // bottom-left of the page empty. Three spawn groups fill the page:
+  // top edge (40%), right edge (35%), and mid-page spawners (25%) that start
+  // already in the bottom half and take a shorter trip so they don't overshoot.
   const [meteors] = useState<MeteorStyle[]>(() =>
     Array.from({ length: number }, () => {
-      const fromRightEdge = Math.random() < 0.4
+      const r = Math.random()
+      if (r < 0.4) {
+        return {
+          top: '-5%',
+          left: `${Math.random() * 100}%`,
+          animationDelay: `${(Math.random() * 1 + 0.2).toFixed(2)}s`,
+          animationDuration: `${(Math.random() * 13 + 2).toFixed(2)}s`,
+        }
+      }
+      if (r < 0.75) {
+        return {
+          top: `${Math.random() * 90}%`,
+          left: '105%',
+          animationDelay: `${(Math.random() * 1 + 0.2).toFixed(2)}s`,
+          animationDuration: `${(Math.random() * 13 + 2).toFixed(2)}s`,
+        }
+      }
       return {
-        top: fromRightEdge ? `${Math.random() * 60}%` : '-5%',
-        left: fromRightEdge ? '105%' : `${Math.random() * 100}%`,
+        top: `${Math.random() * 40 + 30}%`,
+        left: `${Math.random() * 100}%`,
+        distance: '-800px',
         animationDelay: `${(Math.random() * 1 + 0.2).toFixed(2)}s`,
-        animationDuration: `${(Math.random() * 13 + 2).toFixed(2)}s`,
+        animationDuration: `${(Math.random() * 6 + 2).toFixed(2)}s`,
       }
     })
   )
@@ -48,6 +67,7 @@ export default function Meteors({ number = 20, angle = 215 }: Props) {
             animationDelay: meteor.animationDelay,
             animationDuration: meteor.animationDuration,
             '--angle': `${angle}deg`,
+            ...(meteor.distance ? { '--meteor-distance': meteor.distance } : {}),
           }}
         >
           <span
