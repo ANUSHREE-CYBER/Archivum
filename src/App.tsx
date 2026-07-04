@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
+import { motion, AnimatePresence } from 'framer-motion'
 import { Toaster } from 'sonner'
 import { supabase } from './lib/supabase'
 import LandingPage from './pages/LandingPage'
@@ -91,8 +92,14 @@ function App() {
           </button>
         </header>
         <main className="flex-1 overflow-y-auto">
+          <AnimatePresence mode="wait">
           {activeView === 'library' ? (
-            <>
+            <motion.div
+              key="library"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1, transition: { duration: 0.2 } }}
+              exit={{ opacity: 0, transition: { duration: 0.15 } }}
+            >
               <div
                 className="flex items-center justify-between gap-3 px-6 py-3 flex-wrap"
                 style={{ borderBottom: '1px solid var(--color-border)' }}
@@ -143,10 +150,18 @@ function App() {
               )}
 
               <EntryList userId={session.user.id} refreshKey={refreshKey} typeFilter={typeFilter} />
-            </>
+            </motion.div>
           ) : (
-            <StatsDashboard userId={session.user.id} />
+            <motion.div
+              key="stats"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1, transition: { duration: 0.2 } }}
+              exit={{ opacity: 0, transition: { duration: 0.15 } }}
+            >
+              <StatsDashboard userId={session.user.id} />
+            </motion.div>
           )}
+          </AnimatePresence>
         </main>
         <footer
           className="px-6 py-2 text-xs text-center"
