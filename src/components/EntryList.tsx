@@ -75,9 +75,11 @@ const TYPE_LABELS: Record<string, string> = {
   manhwa:  'Manhwa',
 }
 
-// Only the first viewport-worth of cards cascade in; the rest would already
-// be done animating by the time a user scrolls to them, so they just fade up together.
+// Only the first viewport-worth of cards cascade individually; cards past that
+// stay hidden until the stagger window ends, then appear together as one group
+// so nothing below the fold pops in ahead of the cascade above it.
 const STAGGER_CARD_LIMIT = 12
+const STAGGER_WINDOW = 0.6
 
 const cardVariants = {
   hidden: { opacity: 0, y: 20 },
@@ -85,7 +87,7 @@ const cardVariants = {
     opacity: 1,
     y: 0,
     transition: {
-      delay: i < STAGGER_CARD_LIMIT ? i * 0.05 : 0,
+      delay: i < STAGGER_CARD_LIMIT ? i * 0.05 : STAGGER_WINDOW,
       duration: 0.3,
       ease: 'easeOut',
     },

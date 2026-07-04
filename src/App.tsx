@@ -55,9 +55,7 @@ function App() {
           },
         }}
       />
-      <div className="vault-ambient-glow" />
-      {/* relative + z-index so content paints above the fixed glow (fixed elements stack above static ones by default) */}
-      <div className="flex flex-col h-full relative" style={{ zIndex: 1 }}>
+      <div className="flex flex-col h-full vault-page">
         <header
           className="flex items-center justify-between px-6 py-4"
           style={{ borderBottom: '1px solid var(--color-border)' }}
@@ -96,9 +94,9 @@ function App() {
           {activeView === 'library' ? (
             <motion.div
               key="library"
-              initial={{ opacity: 0, scale: 0.98 }}
-              animate={{ opacity: 1, scale: 1, transition: { duration: 0.3 } }}
-              exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.2 } }}
+              initial={{ opacity: 0, scale: 0.97, y: -8 }}
+              animate={{ opacity: 1, scale: 1, y: 0, transition: { duration: 0.35, ease: 'easeInOut' } }}
+              exit={{ opacity: 0, scale: 0.97, y: 8, transition: { duration: 0.25, ease: 'easeInOut' } }}
             >
               <div
                 className="flex items-center justify-between gap-3 px-6 py-3 flex-wrap"
@@ -154,9 +152,9 @@ function App() {
           ) : (
             <motion.div
               key="stats"
-              initial={{ opacity: 0, scale: 0.98 }}
-              animate={{ opacity: 1, scale: 1, transition: { duration: 0.3 } }}
-              exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.2 } }}
+              initial={{ opacity: 0, scale: 0.97, y: -8 }}
+              animate={{ opacity: 1, scale: 1, y: 0, transition: { duration: 0.35, ease: 'easeInOut' } }}
+              exit={{ opacity: 0, scale: 0.97, y: 8, transition: { duration: 0.25, ease: 'easeInOut' } }}
             >
               <StatsDashboard userId={session.user.id} />
             </motion.div>
