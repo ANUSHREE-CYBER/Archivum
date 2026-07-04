@@ -100,11 +100,13 @@ function EntryCard({ entry, index, onClick, selectionMode, selected, onToggleSel
 
   return (
     <motion.button
+      layout
       custom={index}
       variants={cardVariants}
       initial="hidden"
       animate="visible"
       exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.15 } }}
+      transition={{ layout: { duration: 0.25, ease: 'easeOut' } }}
       whileHover={{
         scale: 1.04,
         y: -3,
