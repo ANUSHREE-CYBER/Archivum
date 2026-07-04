@@ -210,6 +210,33 @@ function EntryCard({ entry, index, onClick, selectionMode, selected, onToggleSel
   )
 }
 
+function SkeletonCard() {
+  return (
+    <div className="flex flex-col gap-2 w-full">
+      <div className="skeleton-shimmer rounded w-full" style={{ aspectRatio: '2/3' }} />
+      <div className="skeleton-shimmer rounded" style={{ height: 14, width: '85%' }} />
+      <div className="skeleton-shimmer rounded" style={{ height: 11, width: '40%' }} />
+    </div>
+  )
+}
+
+function SkeletonShelf() {
+  return (
+    <div className="pt-6 pb-2">
+      <h2 className="text-sm font-semibold px-6 mb-3" style={{ color: 'var(--color-text)' }}>
+        Continue
+      </h2>
+      <div className="flex gap-4 overflow-x-auto px-6 pb-2">
+        {Array.from({ length: 4 }, (_, i) => (
+          <div key={i} style={{ width: 130, flexShrink: 0 }}>
+            <div className="skeleton-shimmer rounded w-full" style={{ aspectRatio: '2/3' }} />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 interface Props {
   userId: string
   refreshKey: number
@@ -330,7 +357,19 @@ export default function EntryList({ userId, refreshKey, typeFilter }: Props) {
     }
   }
 
-  if (loading) return null
+  if (loading) {
+    return (
+      <>
+        <SkeletonShelf />
+        <div
+          className="grid gap-4 px-6 pt-6 pb-10"
+          style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))' }}
+        >
+          {Array.from({ length: 10 }, (_, i) => <SkeletonCard key={i} />)}
+        </div>
+      </>
+    )
+  }
 
   if (entries.length === 0) {
     return (
