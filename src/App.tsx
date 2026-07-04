@@ -57,7 +57,7 @@ function App() {
         }}
       />
       <div className="flex flex-col h-full vault-page">
-        <Meteors number={15} />
+        <Meteors number={35} />
         <header
           className="flex items-center justify-between px-6 py-4"
           style={{ borderBottom: '1px solid var(--color-border)' }}
