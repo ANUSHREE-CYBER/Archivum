@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { toast } from 'sonner'
 import { supabase } from '../lib/supabase'
 import ManualEntryModal from './ManualEntryModal'
 
@@ -316,6 +317,7 @@ export default function MediaSearch({ userId, onSaved, onClose }: Props) {
     setSaving(false)
     if (error) {
       setSaveError(error.message)
+      toast.error(error.message, { style: { border: '1px solid var(--color-danger)' } })
     } else {
       setSaved(
         tab === 'book' ? (result as OpenLibraryDoc).key :
@@ -324,6 +326,7 @@ export default function MediaSearch({ userId, onSaved, onClose }: Props) {
       )
       setQuery('')
       setResults([])
+      toast.success(`Added ${title} to your library`)
       onSaved()
     }
   }

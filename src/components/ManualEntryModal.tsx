@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { toast } from 'sonner'
 import { supabase } from '../lib/supabase'
 
 const TYPE_OPTIONS = [
@@ -67,7 +68,9 @@ export default function ManualEntryModal({ userId, onClose, onSaved }: Props) {
     setSaving(false)
     if (err) {
       setError(err.message)
+      toast.error(err.message, { style: { border: '1px solid var(--color-danger)' } })
     } else {
+      toast.success(`Added ${title.trim()} to your library`)
       onSaved()
       onClose()
     }

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { toast } from 'sonner'
 import { supabase } from '../lib/supabase'
 
 export const STATUS_OPTIONS = [
@@ -128,7 +129,17 @@ export default function EntryEditModal({ entry, onClose, onSaved, onDeleted }: P
     setSaving(false)
     if (err) {
       setError(err.message)
+      toast.error(err.message, { style: { border: '1px solid var(--color-danger)' } })
     } else {
+      if (status !== entry.status) {
+        if (status === 'completed') {
+          toast.success(`Marked ${entry.title} as Completed`, {
+            icon: <span style={{ color: 'var(--color-gold)', fontWeight: 700 }}>✓</span>,
+          })
+        } else {
+          toast.success(`Moved ${entry.title} to ${statusLabel(status, entry.type)}`)
+        }
+      }
       onSaved({ id: entry.id, status, rating, metadata: updatedMetadata })
       onClose()
     }
@@ -144,7 +155,9 @@ export default function EntryEditModal({ entry, onClose, onSaved, onDeleted }: P
     setDeleting(false)
     if (err) {
       setDeleteError(err.message)
+      toast.error(err.message, { style: { border: '1px solid var(--color-danger)' } })
     } else {
+      toast.success(`Deleted ${entry.title}`)
       onDeleted(entry.id)
       onClose()
     }
