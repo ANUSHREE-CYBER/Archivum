@@ -75,13 +75,17 @@ const TYPE_LABELS: Record<string, string> = {
   manhwa:  'Manhwa',
 }
 
+// Only the first viewport-worth of cards cascade in; the rest would already
+// be done animating by the time a user scrolls to them, so they just fade up together.
+const STAGGER_CARD_LIMIT = 12
+
 const cardVariants = {
   hidden: { opacity: 0, y: 20 },
   visible: (i: number) => ({
     opacity: 1,
     y: 0,
     transition: {
-      delay: Math.min(i * 0.05, 0.5),
+      delay: i < STAGGER_CARD_LIMIT ? i * 0.05 : 0,
       duration: 0.3,
       ease: 'easeOut',
     },
@@ -107,7 +111,7 @@ function EntryCard({ entry, index, onClick, selectionMode, selected, onToggleSel
       initial="hidden"
       animate="visible"
       exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.15 } }}
-      transition={{ layout: { duration: 0.25, ease: 'easeOut' } }}
+      transition={{ layout: { type: 'spring', stiffness: 200, damping: 25 } }}
       whileHover={{
         scale: 1.04,
         y: -3,
@@ -215,8 +219,11 @@ function SkeletonCard() {
   return (
     <div className="flex flex-col gap-2 w-full">
       <div className="skeleton-shimmer rounded w-full" style={{ aspectRatio: '2/3' }} />
-      <div className="skeleton-shimmer rounded" style={{ height: 14, width: '85%' }} />
-      <div className="skeleton-shimmer rounded" style={{ height: 11, width: '40%' }} />
+      <div className="flex flex-col gap-1">
+        <div className="skeleton-shimmer rounded" style={{ height: 14, width: '85%' }} />
+        <div className="skeleton-shimmer rounded" style={{ height: 11, width: '30%' }} />
+        <div className="skeleton-shimmer rounded-full" style={{ height: 16, width: 56 }} />
+      </div>
     </div>
   )
 }
@@ -258,6 +265,7 @@ export default function EntryList({ userId, refreshKey, typeFilter }: Props) {
   const [bulkDeleteError, setBulkDeleteError] = useState('')
 
   useEffect(() => {
+    let cancelled = false
     setLoading(true)
     supabase
       .from('entries')
@@ -265,9 +273,13 @@ export default function EntryList({ userId, refreshKey, typeFilter }: Props) {
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .then(({ data }) => {
+        // Guard against a stale request (e.g. rapid refreshKey changes) resolving
+        // after a newer one and flipping loading back off with outdated data.
+        if (cancelled) return
         setEntries(data ?? [])
         setLoading(false)
       })
+    return () => { cancelled = true }
   }, [userId, refreshKey])
 
   const genres = useMemo(() => {

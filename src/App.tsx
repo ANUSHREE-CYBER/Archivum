@@ -96,9 +96,9 @@ function App() {
           {activeView === 'library' ? (
             <motion.div
               key="library"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1, transition: { duration: 0.2 } }}
-              exit={{ opacity: 0, transition: { duration: 0.15 } }}
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1, transition: { duration: 0.3 } }}
+              exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.2 } }}
             >
               <div
                 className="flex items-center justify-between gap-3 px-6 py-3 flex-wrap"
@@ -154,9 +154,9 @@ function App() {
           ) : (
             <motion.div
               key="stats"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1, transition: { duration: 0.2 } }}
-              exit={{ opacity: 0, transition: { duration: 0.15 } }}
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1, transition: { duration: 0.3 } }}
+              exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.2 } }}
             >
               <StatsDashboard userId={session.user.id} />
             </motion.div>
