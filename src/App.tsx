@@ -10,6 +10,7 @@ import type { Tab } from './components/MediaSearch'
 import EntryList from './components/EntryList'
 import StatsDashboard from './components/StatsDashboard'
 import SmoothCursor from './components/SmoothCursor'
+import Meteors from './components/Meteors'
 
 const TYPE_FILTER_TABS: { value: 'all' | Tab; label: string }[] = [
   { value: 'all', label: 'All' },
@@ -56,6 +57,7 @@ function App() {
         }}
       />
       <div className="flex flex-col h-full vault-page">
+        <Meteors number={15} />
         <header
           className="flex items-center justify-between px-6 py-4"
           style={{ borderBottom: '1px solid var(--color-border)' }}
