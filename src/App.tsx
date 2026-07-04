@@ -42,7 +42,9 @@ function App() {
   return (
     <>
       <SmoothCursor />
-      <div className="flex flex-col h-full">
+      <div className="vault-ambient-glow" />
+      {/* relative + z-index so content paints above the fixed glow (fixed elements stack above static ones by default) */}
+      <div className="flex flex-col h-full relative" style={{ zIndex: 1 }}>
         <header
           className="flex items-center justify-between px-6 py-4"
           style={{ borderBottom: '1px solid var(--color-border)' }}
