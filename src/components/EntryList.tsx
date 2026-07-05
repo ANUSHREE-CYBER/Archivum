@@ -150,18 +150,25 @@ function progressPercent(entry: EditableEntry): number | null {
 const CARD_STAGGER_STEP_MS = 40
 const CARD_STAGGER_CAP_MS = 500
 
-function EntryCard({ entry, index, onClick, selectionMode, selected, onToggleSelect }: {
+function EntryCard({ entry, index, onClick, selectionMode, selected, onToggleSelect, onQuickStatus }: {
   entry: EditableEntry
   index: number
   onClick: () => void
   selectionMode?: boolean
   selected?: boolean
   onToggleSelect?: () => void
+  onQuickStatus?: (next: string) => void
 }) {
   const [imgError, setImgError] = useState(false)
   const [entered, setEntered] = useState(false)
+  const [statusMenuOpen, setStatusMenuOpen] = useState(false)
   const showFallback = !entry.poster_url || imgError
   const progress = progressPercent(entry)
+
+  function handleActivate() {
+    if (selectionMode) onToggleSelect?.()
+    else onClick()
+  }
 
   useEffect(() => {
     const raf = requestAnimationFrame(() => setEntered(true))
@@ -173,20 +180,30 @@ function EntryCard({ entry, index, onClick, selectionMode, selected, onToggleSel
       className={`w-full ${entered ? 'card-visible' : 'card-entering'}`}
       style={{ transitionDelay: `${Math.min(index * CARD_STAGGER_STEP_MS, CARD_STAGGER_CAP_MS)}ms` }}
     >
-    <motion.button
+    {/* role="button" div rather than <button> — the hover overlay nests real
+        <button>s inside, and buttons can't legally contain buttons */}
+    <motion.div
       layout
+      role="button"
+      tabIndex={0}
       exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.15 } }}
       transition={{ layout: { type: 'spring', stiffness: 200, damping: 25 } }}
       whileHover={{
         boxShadow: '0 0 20px 3px rgba(212,175,106,0.35)',
         transition: { duration: 0.3, ease: 'easeOut' },
       }}
-      onClick={() => (selectionMode ? onToggleSelect?.() : onClick())}
+      onClick={handleActivate}
+      onKeyDown={e => {
+        if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) {
+          e.preventDefault()
+          handleActivate()
+        }
+      }}
+      onMouseLeave={() => setStatusMenuOpen(false)}
       className="group flex flex-col text-left cursor-pointer w-full overflow-hidden"
       style={{
         background: 'var(--color-surface)',
         border: '1px solid var(--color-border)',
-        padding: 0,
         borderRadius: 12,
         boxShadow: '0 0 0px 0px rgba(212,175,106,0)',
         opacity: selectionMode && !selected ? 0.7 : 1,
@@ -245,6 +262,55 @@ function EntryCard({ entry, index, onClick, selectionMode, selected, onToggleSel
             )}
           </span>
         )}
+        {!selectionMode && (
+          <div
+            className="card-quick-actions absolute inset-x-0 bottom-0 flex items-end justify-center gap-2 pb-2"
+            style={{ height: '40%', background: 'linear-gradient(to top, rgba(8,8,8,0.9), transparent)' }}
+          >
+            <div className="relative">
+              <button
+                type="button"
+                className="quick-pill cursor-pointer"
+                title="Change status"
+                onClick={e => {
+                  e.stopPropagation()
+                  setStatusMenuOpen(open => !open)
+                }}
+              >
+                ⟳
+              </button>
+              {statusMenuOpen && (
+                <div className="quick-menu absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5">
+                  {STATUS_OPTIONS.map(opt => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      className={`quick-menu-item cursor-pointer ${opt.value === entry.status ? 'is-current' : ''}`}
+                      onClick={e => {
+                        e.stopPropagation()
+                        setStatusMenuOpen(false)
+                        if (opt.value !== entry.status) onQuickStatus?.(opt.value)
+                      }}
+                    >
+                      {statusLabel(opt.value, entry.type)}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <button
+              type="button"
+              className="quick-pill cursor-pointer"
+              title="Edit"
+              onClick={e => {
+                e.stopPropagation()
+                onClick()
+              }}
+            >
+              ✎
+            </button>
+          </div>
+        )}
         {progress !== null && (
           <div
             className="absolute bottom-0 inset-x-0"
@@ -291,7 +357,7 @@ function EntryCard({ entry, index, onClick, selectionMode, selected, onToggleSel
           {statusLabel(entry.status, entry.type)}
         </span>
       </div>
-    </motion.button>
+    </motion.div>
     </div>
   )
 }
@@ -421,6 +487,27 @@ export default function EntryList({ userId, refreshKey, typeFilter }: Props) {
     )
   }
 
+  async function quickSetStatus(entry: EditableEntry, next: string) {
+    const { error } = await supabase
+      .from('entries')
+      .update({ status: next })
+      .eq('id', entry.id)
+
+    if (error) {
+      toast.error(error.message, { style: { border: '1px solid var(--color-danger)' } })
+      return
+    }
+
+    setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: next } : e))
+    if (next === 'completed') {
+      toast.success(`Marked ${entry.title} as Completed`, {
+        icon: <span style={{ color: 'var(--color-gold)', fontWeight: 700 }}>✓</span>,
+      })
+    } else {
+      toast.success(`Moved ${entry.title} to ${statusLabel(next, entry.type)}`)
+    }
+  }
+
   function toggleSelect(id: string) {
     setSelectedIds(prev => {
       const next = new Set(prev)
@@ -502,7 +589,12 @@ export default function EntryList({ userId, refreshKey, typeFilter }: Props) {
           <div className="flex gap-4 overflow-x-auto px-6 pb-2">
             {inProgress.map((entry, i) => (
               <div key={entry.id} style={{ width: 150, flexShrink: 0 }}>
-                <EntryCard entry={entry} index={i} onClick={() => setEditing(entry)} />
+                <EntryCard
+                  entry={entry}
+                  index={i}
+                  onClick={() => setEditing(entry)}
+                  onQuickStatus={next => quickSetStatus(entry, next)}
+                />
               </div>
             ))}
           </div>
@@ -629,6 +721,7 @@ export default function EntryList({ userId, refreshKey, typeFilter }: Props) {
               selectionMode={selectionMode}
               selected={selectedIds.has(entry.id)}
               onToggleSelect={() => toggleSelect(entry.id)}
+              onQuickStatus={next => quickSetStatus(entry, next)}
             />
           ))}
           </AnimatePresence>
