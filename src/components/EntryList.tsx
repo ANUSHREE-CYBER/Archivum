@@ -32,7 +32,7 @@ function sharpPoster(url: string | null): string | null {
 // Tabs match on type, but movie/tv_show also pick up entries of other
 // types whose inferred format crosses over (e.g. an anime film under Movie).
 // Kdrama is explicitly excluded from the TV Show crossover so it stays in its own tab.
-export function matchesTypeTab(entry: EditableEntry, tab: 'all' | Tab): boolean {
+function matchesTypeTab(entry: EditableEntry, tab: 'all' | Tab): boolean {
   if (tab === 'all') return true
   if (tab === 'movie') return entry.type === 'movie' || entry.format === 'movie'
   if (tab === 'tv_show') {
@@ -41,6 +41,18 @@ export function matchesTypeTab(entry: EditableEntry, tab: 'all' | Tab): boolean 
   }
   return entry.type === tab
 }
+
+// Short index-style labels (MOVIES, TV) rather than the search tabs' full ones
+const INDEX_TABS: { value: 'all' | Tab; label: string }[] = [
+  { value: 'all',     label: 'All' },
+  { value: 'movie',   label: 'Movies' },
+  { value: 'tv_show', label: 'TV' },
+  { value: 'kdrama',  label: 'Kdrama' },
+  { value: 'anime',   label: 'Anime' },
+  { value: 'book',    label: 'Books' },
+  { value: 'manga',   label: 'Manga' },
+  { value: 'manhwa',  label: 'Manhwa' },
+]
 
 const SELECT_STYLE = {
   background: 'var(--color-surface)',
@@ -405,13 +417,14 @@ interface Props {
   userId: string
   refreshKey: number
   typeFilter: 'all' | Tab
+  onTypeFilterChange: (tab: 'all' | Tab) => void
   // Entries state lives in App so the vault header can show live counts;
   // this component still owns fetching and all mutations via the setter.
   entries: EditableEntry[]
   setEntries: Dispatch<SetStateAction<EditableEntry[]>>
 }
 
-export default function EntryList({ userId, refreshKey, typeFilter, entries, setEntries }: Props) {
+export default function EntryList({ userId, refreshKey, typeFilter, onTypeFilterChange, entries, setEntries }: Props) {
   const [loading, setLoading]         = useState(true)
   const [editing, setEditing]         = useState<EditableEntry | null>(null)
   const [statusFilter, setStatusFilter]= useState('')
@@ -579,52 +592,64 @@ export default function EntryList({ userId, refreshKey, typeFilter, entries, set
     )
   }
 
-  // The tab itself is empty — no shelf, filter bar, or grid to show
-  if (tabEntries.length === 0) {
-    return <EmptyState tab={typeFilter} />
-  }
-
   return (
     <>
-      {inProgress.length > 0 && (
-        <div className="pt-6 pb-2">
-          <h2 className="text-sm font-semibold px-6 mb-3" style={{ color: 'var(--color-text)' }}>
-            Continue
-          </h2>
-          <div className="flex gap-4 overflow-x-auto px-6 pb-2">
-            {inProgress.map((entry, i) => (
-              <div key={entry.id} style={{ width: 150, flexShrink: 0 }}>
-                <EntryCard
-                  entry={entry}
-                  index={i}
-                  onClick={() => setEditing(entry)}
-                  onQuickStatus={next => quickSetStatus(entry, next)}
-                />
-              </div>
-            ))}
-          </div>
+      {/* Single toolbar line: index tabs left, filter controls right (they wrap
+          below on narrow viewports). Rendered even when the current tab is
+          empty — the tabs are the way to switch back out. */}
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-3 px-6 pt-4 pb-2">
+        <div className="flex gap-4 flex-wrap items-center">
+          {INDEX_TABS.map(t => {
+            const active = typeFilter === t.value
+            const count = entries.filter(e => matchesTypeTab(e, t.value)).length
+            return (
+              <button
+                key={t.value}
+                onClick={() => onTypeFilterChange(t.value)}
+                className={`text-xs font-medium uppercase whitespace-nowrap cursor-pointer transition-colors ${
+                  active ? 'text-[#D4AF6A]' : 'text-[#6B6660] hover:text-[#F2EFE9]'
+                }`}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  padding: '2px 0 6px',
+                  letterSpacing: '0.08em',
+                  borderBottom: active ? '2px solid #D4AF6A' : '2px solid transparent',
+                }}
+              >
+                {t.label}
+                {/* count in a slightly more muted shade than its label */}
+                <span
+                  style={{
+                    marginLeft: 5,
+                    color: active ? 'rgba(212,175,106,0.75)' : '#52504B',
+                  }}
+                >
+                  {count}
+                </span>
+              </button>
+            )
+          })}
         </div>
-      )}
 
-      {/* filter + sort bar */}
-      <div className="flex flex-wrap gap-2 px-6 pb-2 items-center">
-        <Dropdown
-          ariaLabel="Filter by status"
-          options={[{ value: '', label: 'All Statuses' }, ...STATUS_FILTER_OPTIONS]}
-          value={statusFilter}
-          onChange={setStatusFilter}
-        />
-
-        {genres.length > 0 && (
+        <div className="flex flex-wrap gap-2 items-center ml-auto">
           <Dropdown
-            ariaLabel="Filter by genre"
-            options={[{ value: '', label: 'All Genres' }, ...genres.map(g => ({ value: g, label: g }))]}
-            value={genreFilter}
-            onChange={setGenreFilter}
+            ariaLabel="Filter by status"
+            options={[{ value: '', label: 'All Statuses' }, ...STATUS_FILTER_OPTIONS]}
+            value={statusFilter}
+            onChange={setStatusFilter}
           />
-        )}
 
-        <div className="flex gap-2 items-center ml-auto">
+          {genres.length > 0 && (
+            <Dropdown
+              ariaLabel="Filter by genre"
+              options={[{ value: '', label: 'All Genres' }, ...genres.map(g => ({ value: g, label: g }))]}
+              value={genreFilter}
+              onChange={setGenreFilter}
+            />
+          )}
+
+          <div className="flex gap-2 items-center">
           {confirmingBulkDelete ? (
             <>
               <span className="text-xs" style={{ color: 'var(--color-danger)' }}>
@@ -688,6 +713,7 @@ export default function EntryList({ userId, refreshKey, typeFilter, entries, set
             value={sortBy}
             onChange={setSortBy}
           />
+          </div>
         </div>
       </div>
 
@@ -695,7 +721,29 @@ export default function EntryList({ userId, refreshKey, typeFilter, entries, set
         <p className="text-xs px-6 pb-2" style={{ color: 'var(--color-danger)' }}>{bulkDeleteError}</p>
       )}
 
-      {visible.length === 0 ? (
+      {tabEntries.length === 0 && <EmptyState tab={typeFilter} />}
+
+      {tabEntries.length > 0 && inProgress.length > 0 && (
+        <div className="pt-4 pb-2">
+          <h2 className="text-sm font-semibold px-6 mb-3" style={{ color: 'var(--color-text)' }}>
+            Continue
+          </h2>
+          <div className="flex gap-4 overflow-x-auto px-6 pb-2">
+            {inProgress.map((entry, i) => (
+              <div key={entry.id} style={{ width: 150, flexShrink: 0 }}>
+                <EntryCard
+                  entry={entry}
+                  index={i}
+                  onClick={() => setEditing(entry)}
+                  onQuickStatus={next => quickSetStatus(entry, next)}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {tabEntries.length > 0 && (visible.length === 0 ? (
         <p className="text-center text-sm mt-8" style={{ color: 'var(--color-text-muted)' }}>
           No entries match these filters.
         </p>
@@ -719,7 +767,7 @@ export default function EntryList({ userId, refreshKey, typeFilter, entries, set
           ))}
           </AnimatePresence>
         </div>
-      )}
+      ))}
 
       {editing && (
         <EntryEditModal
