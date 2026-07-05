@@ -353,6 +353,17 @@ export default function MediaSearch({ userId, onSaved }: Props) {
       }}
     >
       <div className="flex items-center gap-4 flex-nowrap">
+        <span
+          className="hidden min-[900px]:inline flex-shrink-0 italic"
+          style={{
+            fontFamily: "Georgia, 'Times New Roman', serif",
+            fontSize: 13,
+            color: 'var(--color-text-muted)',
+          }}
+        >
+          Add to your archive
+        </span>
+
         {/* API type selector — minimal text tabs, the underline is the only
             active marker so the gold stays quiet */}
         <div className="flex items-center gap-3 flex-shrink-0">
