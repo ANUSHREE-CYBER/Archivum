@@ -75,6 +75,45 @@ const TYPE_LABELS: Record<string, string> = {
   manhwa:  'Manhwa',
 }
 
+// Shown when a tab has no entries at all (before status/genre filtering) —
+// filtered-to-empty keeps the generic "No entries match these filters." message.
+const EMPTY_MESSAGES: Record<'all' | Tab, string> = {
+  all:     'Your vault is empty. Add your first entry.',
+  movie:   'No movies in your vault yet.',
+  tv_show: 'No TV shows in your vault yet.',
+  kdrama:  'No kdramas in your vault yet.',
+  anime:   'No anime in your vault yet.',
+  book:    'Your bookshelf is empty.',
+  manga:   'No manga in your vault yet.',
+  manhwa:  'No manhwa in your vault yet.',
+}
+
+function EmptyState({ tab }: { tab: 'all' | Tab }) {
+  return (
+    <div className="flex items-center justify-center px-6" style={{ minHeight: '45vh' }}>
+      {/* soft dark scrim so the muted text stays readable over bright aurora bands */}
+      <div
+        className="flex items-center gap-2.5 rounded-lg px-5 py-3"
+        style={{ background: 'rgba(8,8,8,0.5)' }}
+      >
+        {tab !== 'all' && (
+          <span
+            aria-hidden="true"
+            className="rounded-full flex-shrink-0"
+            style={{ width: 9, height: 9, background: TYPE_DOT_COLORS[tab] }}
+          />
+        )}
+        <p
+          className="text-sm text-center"
+          style={{ color: 'var(--color-text-muted)', textShadow: '0 1px 8px rgba(8,8,8,0.8)' }}
+        >
+          {EMPTY_MESSAGES[tab]}
+        </p>
+      </div>
+    </div>
+  )
+}
+
 // Progress toward completion for in_progress entries, as 0–100, or null when it
 // can't be computed. Each medium pairs a "current" metadata field with a "total":
 // books store currentPage/totalPages (both editable in the modal today), while
@@ -339,8 +378,16 @@ export default function EntryList({ userId, refreshKey, typeFilter }: Props) {
     return [...set].sort()
   }, [entries])
 
+  // Entries for the current tab before status/genre filtering — used to tell
+  // "this tab is truly empty" (per-tab empty state) apart from "filters
+  // excluded everything" (generic message).
+  const tabEntries = useMemo(
+    () => entries.filter(e => matchesTypeTab(e, typeFilter)),
+    [entries, typeFilter]
+  )
+
   const visible = useMemo(() => {
-    let result = entries.filter(e => matchesTypeTab(e, typeFilter))
+    let result = tabEntries
     if (statusFilter) result = result.filter(e => e.status === statusFilter)
     if (genreFilter)  result = result.filter(e => e.genres?.includes(genreFilter) ?? false)
     if (sortBy === 'year_desc') {
@@ -361,11 +408,11 @@ export default function EntryList({ userId, refreshKey, typeFilter }: Props) {
       result = [...result].sort((a, b) => a.title.localeCompare(b.title))
     }
     return result
-  }, [entries, typeFilter, statusFilter, genreFilter, sortBy])
+  }, [tabEntries, statusFilter, genreFilter, sortBy])
 
   const inProgress = useMemo(
-    () => entries.filter(e => e.status === 'in_progress' && matchesTypeTab(e, typeFilter)),
-    [entries, typeFilter]
+    () => tabEntries.filter(e => e.status === 'in_progress'),
+    [tabEntries]
   )
 
   function handleSaved(updated: Pick<EditableEntry, 'id' | 'status' | 'rating' | 'metadata'>) {
@@ -440,12 +487,9 @@ export default function EntryList({ userId, refreshKey, typeFilter }: Props) {
     )
   }
 
-  if (entries.length === 0) {
-    return (
-      <p className="text-center text-sm mt-8" style={{ color: 'var(--color-text-muted)' }}>
-        Nothing added yet.
-      </p>
-    )
+  // The tab itself is empty — no shelf, filter bar, or grid to show
+  if (tabEntries.length === 0) {
+    return <EmptyState tab={typeFilter} />
   }
 
   return (
