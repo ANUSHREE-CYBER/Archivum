@@ -133,23 +133,34 @@ function App() {
                   style={{
                     padding: '6px 18px',
                     borderRadius: 6,
-                    background: showAdd ? 'var(--color-surface)' : 'var(--color-gold)',
-                    color: showAdd ? 'var(--color-text)' : 'var(--color-background)',
-                    border: showAdd ? '1px solid var(--color-border)' : 'none',
-                    transition: 'background-color 0.15s, color 0.15s',
+                    background: 'var(--color-gold)',
+                    color: 'var(--color-background)',
+                    border: 'none',
                   }}
                 >
                   {showAdd ? 'Close' : '+ Add'}
                 </button>
               </div>
 
-              {showAdd && (
-                <MediaSearch
-                  userId={session.user.id}
-                  onSaved={() => setRefreshKey(k => k + 1)}
-                  onClose={() => setShowAdd(false)}
-                />
-              )}
+              {/* Drawer slide: animating height 0 → auto (clipped by overflow
+                  hidden) reads as the panel sliding down from under the tab row */}
+              <AnimatePresence>
+                {showAdd && (
+                  <motion.div
+                    key="add-panel"
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.25, ease: 'easeInOut' }}
+                    style={{ overflow: 'hidden' }}
+                  >
+                    <MediaSearch
+                      userId={session.user.id}
+                      onSaved={() => setRefreshKey(k => k + 1)}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               <EntryList userId={session.user.id} refreshKey={refreshKey} typeFilter={typeFilter} />
             </motion.div>
