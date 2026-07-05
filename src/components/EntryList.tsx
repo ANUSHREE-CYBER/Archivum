@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 import EntryEditModal, { STATUS_OPTIONS, statusLabel } from './EntryEditModal'
 import type { EditableEntry } from './EntryEditModal'
 import type { Tab } from './MediaSearch'
+import Dropdown from './Dropdown'
 
 const SORT_OPTIONS = [
   { value: 'newest',    label: 'Newest Added' },
@@ -603,28 +604,20 @@ export default function EntryList({ userId, refreshKey, typeFilter }: Props) {
 
       {/* filter + sort bar */}
       <div className="flex flex-wrap gap-2 px-6 pb-2 items-center">
-        <select
+        <Dropdown
+          ariaLabel="Filter by status"
+          options={[{ value: '', label: 'All Statuses' }, ...STATUS_FILTER_OPTIONS]}
           value={statusFilter}
-          onChange={e => setStatusFilter(e.target.value)}
-          className="rounded px-2 py-1.5 text-xs outline-none cursor-pointer"
-          style={SELECT_STYLE}
-        >
-          <option value="">All Statuses</option>
-          {STATUS_FILTER_OPTIONS.map(o => (
-            <option key={o.value} value={o.value}>{o.label}</option>
-          ))}
-        </select>
+          onChange={setStatusFilter}
+        />
 
         {genres.length > 0 && (
-          <select
+          <Dropdown
+            ariaLabel="Filter by genre"
+            options={[{ value: '', label: 'All Genres' }, ...genres.map(g => ({ value: g, label: g }))]}
             value={genreFilter}
-            onChange={e => setGenreFilter(e.target.value)}
-            className="rounded px-2 py-1.5 text-xs outline-none cursor-pointer"
-            style={SELECT_STYLE}
-          >
-            <option value="">All Genres</option>
-            {genres.map(g => <option key={g} value={g}>{g}</option>)}
-          </select>
+            onChange={setGenreFilter}
+          />
         )}
 
         <div className="flex gap-2 items-center ml-auto">
@@ -685,16 +678,12 @@ export default function EntryList({ userId, refreshKey, typeFilter }: Props) {
             </button>
           )}
 
-          <select
+          <Dropdown
+            ariaLabel="Sort by"
+            options={SORT_OPTIONS}
             value={sortBy}
-            onChange={e => setSortBy(e.target.value)}
-            className="rounded px-2 py-1.5 text-xs outline-none cursor-pointer"
-            style={SELECT_STYLE}
-          >
-            {SORT_OPTIONS.map(o => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
+            onChange={setSortBy}
+          />
         </div>
       </div>
 
