@@ -622,7 +622,7 @@ export default function EntryList({ userId, refreshKey, typeFilter, onTypeFilter
                 key={t.value}
                 onClick={() => onTypeFilterChange(t.value)}
                 className={`text-xs font-medium uppercase whitespace-nowrap cursor-pointer transition-colors ${
-                  active ? 'text-[#D4AF6A]' : 'text-[#6B6660] hover:text-[#F2EFE9]'
+                  active ? 'text-[#D4AF6A]' : 'text-[#9A9590] hover:text-[#F2EFE9]'
                 }`}
                 style={{
                   background: 'none',
@@ -630,6 +630,8 @@ export default function EntryList({ userId, refreshKey, typeFilter, onTypeFilter
                   padding: '2px 0 6px',
                   letterSpacing: '0.08em',
                   borderBottom: active ? '2px solid #D4AF6A' : '2px solid transparent',
+                  // keeps the labels legible over bright aurora bands
+                  textShadow: '0 1px 6px rgba(8, 8, 8, 0.9)',
                 }}
               >
                 {t.label}
