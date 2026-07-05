@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import type { Dispatch, SetStateAction } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 import { supabase } from '../lib/supabase'
@@ -404,10 +405,13 @@ interface Props {
   userId: string
   refreshKey: number
   typeFilter: 'all' | Tab
+  // Entries state lives in App so the vault header can show live counts;
+  // this component still owns fetching and all mutations via the setter.
+  entries: EditableEntry[]
+  setEntries: Dispatch<SetStateAction<EditableEntry[]>>
 }
 
-export default function EntryList({ userId, refreshKey, typeFilter }: Props) {
-  const [entries, setEntries]         = useState<EditableEntry[]>([])
+export default function EntryList({ userId, refreshKey, typeFilter, entries, setEntries }: Props) {
   const [loading, setLoading]         = useState(true)
   const [editing, setEditing]         = useState<EditableEntry | null>(null)
   const [statusFilter, setStatusFilter]= useState('')

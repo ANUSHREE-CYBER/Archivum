@@ -7,6 +7,7 @@ import LandingPage from './pages/LandingPage'
 import MediaSearch, { TABS } from './components/MediaSearch'
 import type { Tab } from './components/MediaSearch'
 import EntryList from './components/EntryList'
+import type { EditableEntry } from './components/EntryEditModal'
 import StatsDashboard from './components/StatsDashboard'
 import SmoothCursor from './components/SmoothCursor'
 import { AuroraBackground } from './components/AuroraBackground'
@@ -23,6 +24,17 @@ function App() {
   const [activeView, setActiveView] = useState<'library' | 'stats'>('library')
   const [typeFilter, setTypeFilter] = useState<'all' | Tab>('all')
   const [showAdd, setShowAdd] = useState(false)
+  // Lifted out of EntryList so the vault header can show live counts;
+  // EntryList still does the fetching and mutating through the setter
+  const [entries, setEntries] = useState<EditableEntry[]>([])
+
+  const completedCount  = entries.filter(e => e.status === 'completed').length
+  const inProgressCount = entries.filter(e => e.status === 'in_progress').length
+  const countLine = [
+    entries.length > 0 && `${entries.length} ${entries.length === 1 ? 'title' : 'titles'}`,
+    completedCount > 0 && `${completedCount} completed`,
+    inProgressCount > 0 && `${inProgressCount} in progress`,
+  ].filter(Boolean).join(' · ')
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -102,6 +114,30 @@ function App() {
               animate={{ opacity: 1, scale: 1, y: 0, transition: { duration: 0.35, ease: 'easeInOut' } }}
               exit={{ opacity: 0, scale: 0.97, y: 8, transition: { duration: 0.25, ease: 'easeInOut' } }}
             >
+              {/* Vault identity header — display only, no controls */}
+              <div
+                className="flex items-baseline gap-3 px-6"
+                style={{ minHeight: 40, paddingTop: 14, marginBottom: 16 }}
+              >
+                <h1
+                  style={{
+                    fontFamily: "Georgia, 'Times New Roman', serif",
+                    fontSize: 23,
+                    fontWeight: 400,
+                    letterSpacing: '0.02em',
+                    color: 'var(--color-text)',
+                    margin: 0,
+                  }}
+                >
+                  The Vault
+                </h1>
+                {countLine && (
+                  <span style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>
+                    {countLine}
+                  </span>
+                )}
+              </div>
+
               <div
                 className="flex items-center justify-between gap-3 px-6 py-3 flex-wrap"
                 style={{ borderBottom: '1px solid var(--color-border)' }}
@@ -162,7 +198,13 @@ function App() {
                 )}
               </AnimatePresence>
 
-              <EntryList userId={session.user.id} refreshKey={refreshKey} typeFilter={typeFilter} />
+              <EntryList
+                userId={session.user.id}
+                refreshKey={refreshKey}
+                typeFilter={typeFilter}
+                entries={entries}
+                setEntries={setEntries}
+              />
             </motion.div>
           ) : (
             <motion.div
