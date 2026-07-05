@@ -6,23 +6,11 @@ import { supabase } from './lib/supabase'
 import LandingPage from './pages/LandingPage'
 import MediaSearch from './components/MediaSearch'
 import type { Tab } from './components/MediaSearch'
-import EntryList, { matchesTypeTab } from './components/EntryList'
+import EntryList from './components/EntryList'
 import type { EditableEntry } from './components/EntryEditModal'
 import StatsDashboard from './components/StatsDashboard'
 import SmoothCursor from './components/SmoothCursor'
 import { AuroraBackground } from './components/AuroraBackground'
-
-// Short index-style labels (MOVIES, TV) rather than the search tabs' full ones
-const INDEX_TABS: { value: 'all' | Tab; label: string }[] = [
-  { value: 'all',     label: 'All' },
-  { value: 'movie',   label: 'Movies' },
-  { value: 'tv_show', label: 'TV' },
-  { value: 'kdrama',  label: 'Kdrama' },
-  { value: 'anime',   label: 'Anime' },
-  { value: 'book',    label: 'Books' },
-  { value: 'manga',   label: 'Manga' },
-  { value: 'manhwa',  label: 'Manhwa' },
-]
 
 function App() {
   const [session, setSession] = useState<Session | null>(null)
@@ -145,44 +133,12 @@ function App() {
                 )}
               </div>
 
+              {/* Top area: only the +Add toggle — the type tabs live in the
+                  toolbar row inside EntryList now */}
               <div
-                className="flex items-center justify-between gap-3 px-6 py-3 flex-wrap"
+                className="flex items-center justify-end gap-3 px-6 py-3"
                 style={{ borderBottom: '1px solid var(--color-border)' }}
               >
-                <div className="flex gap-4 flex-wrap items-center">
-                  {INDEX_TABS.map(t => {
-                    const active = typeFilter === t.value
-                    const count = entries.filter(e => matchesTypeTab(e, t.value)).length
-                    return (
-                      <button
-                        key={t.value}
-                        onClick={() => setTypeFilter(t.value)}
-                        className={`text-xs font-medium uppercase whitespace-nowrap cursor-pointer transition-colors ${
-                          active ? 'text-[#D4AF6A]' : 'text-[#6B6660] hover:text-[#F2EFE9]'
-                        }`}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          padding: '2px 0 6px',
-                          letterSpacing: '0.08em',
-                          borderBottom: active ? '2px solid #D4AF6A' : '2px solid transparent',
-                        }}
-                      >
-                        {t.label}
-                        {/* count in a slightly more muted shade than its label */}
-                        <span
-                          style={{
-                            marginLeft: 5,
-                            color: active ? 'rgba(212,175,106,0.75)' : '#52504B',
-                          }}
-                        >
-                          {count}
-                        </span>
-                      </button>
-                    )
-                  })}
-                </div>
-
                 <button
                   onClick={() => setShowAdd(v => !v)}
                   className="text-sm font-medium cursor-pointer flex-shrink-0"
@@ -222,6 +178,7 @@ function App() {
                 userId={session.user.id}
                 refreshKey={refreshKey}
                 typeFilter={typeFilter}
+                onTypeFilterChange={setTypeFilter}
                 entries={entries}
                 setEntries={setEntries}
               />
