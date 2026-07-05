@@ -75,6 +75,33 @@ const TYPE_LABELS: Record<string, string> = {
   manhwa:  'Manhwa',
 }
 
+// Progress toward completion for in_progress entries, as 0–100, or null when it
+// can't be computed. Each medium pairs a "current" metadata field with a "total":
+// books store currentPage/totalPages (both editable in the modal today), while
+// serials (episode/totalEpisodes) and manga/manhwa (chapter/totalChapters) only
+// gain a bar once a total is present in metadata — no total, no bar, per spec.
+function progressPercent(entry: EditableEntry): number | null {
+  if (entry.status !== 'in_progress') return null
+  const meta = (entry.metadata ?? {}) as Record<string, unknown>
+  const num = (v: unknown) => (typeof v === 'number' && v > 0 ? v : null)
+
+  let current: number | null
+  let total: number | null
+  if (entry.type === 'book') {
+    current = num(meta.currentPage)
+    total   = num(meta.totalPages)
+  } else if (entry.type === 'manga' || entry.type === 'manhwa') {
+    current = num(meta.chapter)
+    total   = num(meta.totalChapters)
+  } else {
+    current = num(meta.episode)
+    total   = num(meta.totalEpisodes)
+  }
+
+  if (current === null || total === null) return null
+  return Math.min(100, (current / total) * 100)
+}
+
 // Entrance is plain CSS (transition + transition-delay), not Framer Motion —
 // mixing FM's own transform ownership (from `layout`) with FM-driven entrance
 // transforms was the source of the stagger timing bugs. Each card flips from
@@ -95,6 +122,7 @@ function EntryCard({ entry, index, onClick, selectionMode, selected, onToggleSel
   const [imgError, setImgError] = useState(false)
   const [entered, setEntered] = useState(false)
   const showFallback = !entry.poster_url || imgError
+  const progress = progressPercent(entry)
 
   useEffect(() => {
     const raf = requestAnimationFrame(() => setEntered(true))
@@ -177,6 +205,17 @@ function EntryCard({ entry, index, onClick, selectionMode, selected, onToggleSel
               </span>
             )}
           </span>
+        )}
+        {progress !== null && (
+          <div
+            className="absolute bottom-0 inset-x-0"
+            style={{ height: 3, background: 'rgba(255,255,255,0.15)' }}
+          >
+            <div
+              className="h-full"
+              style={{ width: `${progress}%`, background: '#D4AF6A' }}
+            />
+          </div>
         )}
       </div>
       {/* Fixed-height rows (1-line title, always-rendered meta row) keep every
