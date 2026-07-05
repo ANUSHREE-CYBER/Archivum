@@ -179,10 +179,9 @@ async function searchMangaWithFallback(query: string): Promise<MangaResult[]> {
 interface Props {
   userId: string
   onSaved: () => void
-  onClose: () => void
 }
 
-export default function MediaSearch({ userId, onSaved, onClose }: Props) {
+export default function MediaSearch({ userId, onSaved }: Props) {
   const [tab, setTab] = useState<Tab>('movie')
   const [showManual, setShowManual] = useState(false)
   const [query, setQuery] = useState('')
@@ -341,23 +340,34 @@ export default function MediaSearch({ userId, onSaved, onClose }: Props) {
 
   return (
     <>
+    {/* Full-width drawer under the filter tab row — frosted glass over the
+        aurora. The slide open/close animation lives in App.tsx (AnimatePresence
+        around the mount), since exit animations need the component that owns
+        the conditional. */}
     <div
-      className="flex flex-col gap-4 w-full max-w-lg mx-auto px-4 py-5 mt-2 rounded-lg"
-      style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}
+      className="flex flex-col gap-4 w-full px-6 py-5"
+      style={{
+        background: 'rgba(17, 17, 17, 0.85)',
+        backdropFilter: 'blur(12px)',
+        borderBottom: '1px solid var(--color-border)',
+      }}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div
-          className="flex rounded overflow-hidden flex-wrap"
-          style={{ border: '1px solid var(--color-border)' }}
-        >
+      <div className="flex items-center gap-4 flex-nowrap">
+        {/* API type selector — minimal text tabs, the underline is the only
+            active marker so the gold stays quiet */}
+        <div className="flex items-center gap-3 flex-shrink-0">
           {TABS.map(t => (
             <button
               key={t.value}
               onClick={() => switchTab(t.value)}
-              className="px-3 py-1.5 text-sm font-medium cursor-pointer"
+              className={`text-sm font-medium cursor-pointer whitespace-nowrap transition-colors ${
+                tab === t.value ? 'text-[#D4AF6A]' : 'text-[#6B6660] hover:text-[#F2EFE9]'
+              }`}
               style={{
-                background: tab === t.value ? 'var(--color-gold)' : 'var(--color-background)',
-                color: tab === t.value ? 'var(--color-background)' : 'var(--color-text-muted)',
+                background: 'none',
+                border: 'none',
+                padding: '2px 0 4px',
+                borderBottom: tab === t.value ? '2px solid #D4AF6A' : '2px solid transparent',
               }}
             >
               {t.label}
@@ -365,17 +375,6 @@ export default function MediaSearch({ userId, onSaved, onClose }: Props) {
           ))}
         </div>
 
-        <button
-          onClick={onClose}
-          className="text-xs cursor-pointer hover:opacity-80 flex-shrink-0"
-          style={{ background: 'none', border: 'none', padding: '4px', color: 'var(--color-text-muted)' }}
-          aria-label="Close"
-        >
-          ✕
-        </button>
-      </div>
-
-      <div className="flex gap-2">
         <input
           type="text"
           placeholder={placeholder}
@@ -385,12 +384,8 @@ export default function MediaSearch({ userId, onSaved, onClose }: Props) {
             setSaveError('')
             setQuery(e.target.value)
           }}
-          className="rounded px-3 py-2 outline-none flex-1"
-          style={{
-            background: 'var(--color-background)',
-            border: '1px solid var(--color-border)',
-            color: 'var(--color-text)',
-          }}
+          className="flex-1 min-w-0 rounded-lg px-3 text-sm outline-none transition-colors bg-[#0D0D0D] border border-[#1E1E1E] focus:border-[#3A3A3A] placeholder:text-[#6B6660]"
+          style={{ height: 40, color: 'var(--color-text)' }}
         />
 
         <button
@@ -414,7 +409,7 @@ export default function MediaSearch({ userId, onSaved, onClose }: Props) {
       )}
 
       {saved !== null && (
-        <p className="text-sm" style={{ color: 'var(--color-gold)' }}>
+        <p className="text-sm" style={{ color: 'var(--color-text)' }}>
           Added to your list.
         </p>
       )}
