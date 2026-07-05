@@ -32,7 +32,7 @@ function sharpPoster(url: string | null): string | null {
 // Tabs match on type, but movie/tv_show also pick up entries of other
 // types whose inferred format crosses over (e.g. an anime film under Movie).
 // Kdrama is explicitly excluded from the TV Show crossover so it stays in its own tab.
-function matchesTypeTab(entry: EditableEntry, tab: 'all' | Tab): boolean {
+export function matchesTypeTab(entry: EditableEntry, tab: 'all' | Tab): boolean {
   if (tab === 'all') return true
   if (tab === 'movie') return entry.type === 'movie' || entry.format === 'movie'
   if (tab === 'tv_show') {
