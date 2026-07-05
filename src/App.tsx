@@ -4,13 +4,12 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Toaster } from 'sonner'
 import { supabase } from './lib/supabase'
 import LandingPage from './pages/LandingPage'
-import LoginPage from './pages/LoginPage' // kept for reference
 import MediaSearch, { TABS } from './components/MediaSearch'
 import type { Tab } from './components/MediaSearch'
 import EntryList from './components/EntryList'
 import StatsDashboard from './components/StatsDashboard'
 import SmoothCursor from './components/SmoothCursor'
-import Meteors from './components/Meteors'
+import { AuroraBackground } from './components/AuroraBackground'
 
 const TYPE_FILTER_TABS: { value: 'all' | Tab; label: string }[] = [
   { value: 'all', label: 'All' },
@@ -56,8 +55,7 @@ function App() {
           },
         }}
       />
-      <div className="flex flex-col h-full vault-page">
-        <Meteors number={95} />
+      <AuroraBackground className="h-full flex-col items-stretch justify-start vault-page">
         <header
           className="flex items-center justify-between px-6 py-4"
           style={{ borderBottom: '1px solid var(--color-border)' }}
@@ -172,7 +170,7 @@ function App() {
         >
           This product uses the TMDB API but is not endorsed or certified by TMDB. Additional data from AniList and Open Library.
         </footer>
-      </div>
+      </AuroraBackground>
     </>
   )
 }
