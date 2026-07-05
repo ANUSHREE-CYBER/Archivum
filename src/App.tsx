@@ -4,17 +4,24 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Toaster } from 'sonner'
 import { supabase } from './lib/supabase'
 import LandingPage from './pages/LandingPage'
-import MediaSearch, { TABS } from './components/MediaSearch'
+import MediaSearch from './components/MediaSearch'
 import type { Tab } from './components/MediaSearch'
-import EntryList from './components/EntryList'
+import EntryList, { matchesTypeTab } from './components/EntryList'
 import type { EditableEntry } from './components/EntryEditModal'
 import StatsDashboard from './components/StatsDashboard'
 import SmoothCursor from './components/SmoothCursor'
 import { AuroraBackground } from './components/AuroraBackground'
 
-const TYPE_FILTER_TABS: { value: 'all' | Tab; label: string }[] = [
-  { value: 'all', label: 'All' },
-  ...TABS,
+// Short index-style labels (MOVIES, TV) rather than the search tabs' full ones
+const INDEX_TABS: { value: 'all' | Tab; label: string }[] = [
+  { value: 'all',     label: 'All' },
+  { value: 'movie',   label: 'Movies' },
+  { value: 'tv_show', label: 'TV' },
+  { value: 'kdrama',  label: 'Kdrama' },
+  { value: 'anime',   label: 'Anime' },
+  { value: 'book',    label: 'Books' },
+  { value: 'manga',   label: 'Manga' },
+  { value: 'manhwa',  label: 'Manhwa' },
 ]
 
 function App() {
@@ -142,25 +149,38 @@ function App() {
                 className="flex items-center justify-between gap-3 px-6 py-3 flex-wrap"
                 style={{ borderBottom: '1px solid var(--color-border)' }}
               >
-                <div className="flex gap-1.5 flex-wrap">
-                  {TYPE_FILTER_TABS.map(t => (
-                    <button
-                      key={t.value}
-                      onClick={() => setTypeFilter(t.value)}
-                      className="text-xs cursor-pointer"
-                      style={{
-                        padding: '4px 11px',
-                        borderRadius: 999,
-                        border: '1px solid var(--color-border)',
-                        fontWeight: typeFilter === t.value ? 500 : 400,
-                        color: typeFilter === t.value ? 'var(--color-text)' : 'var(--color-text-muted)',
-                        background: typeFilter === t.value ? 'var(--color-border)' : 'transparent',
-                        transition: 'background-color 0.15s, color 0.15s',
-                      }}
-                    >
-                      {t.label}
-                    </button>
-                  ))}
+                <div className="flex gap-4 flex-wrap items-center">
+                  {INDEX_TABS.map(t => {
+                    const active = typeFilter === t.value
+                    const count = entries.filter(e => matchesTypeTab(e, t.value)).length
+                    return (
+                      <button
+                        key={t.value}
+                        onClick={() => setTypeFilter(t.value)}
+                        className={`text-xs font-medium uppercase whitespace-nowrap cursor-pointer transition-colors ${
+                          active ? 'text-[#D4AF6A]' : 'text-[#6B6660] hover:text-[#F2EFE9]'
+                        }`}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          padding: '2px 0 6px',
+                          letterSpacing: '0.08em',
+                          borderBottom: active ? '2px solid #D4AF6A' : '2px solid transparent',
+                        }}
+                      >
+                        {t.label}
+                        {/* count in a slightly more muted shade than its label */}
+                        <span
+                          style={{
+                            marginLeft: 5,
+                            color: active ? 'rgba(212,175,106,0.75)' : '#52504B',
+                          }}
+                        >
+                          {count}
+                        </span>
+                      </button>
+                    )
+                  })}
                 </div>
 
                 <button
