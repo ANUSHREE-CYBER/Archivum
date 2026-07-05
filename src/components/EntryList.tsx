@@ -465,7 +465,9 @@ export default function EntryList({ userId, refreshKey, typeFilter, onTypeFilter
         setLoading(false)
       })
     return () => { cancelled = true }
-  }, [userId, refreshKey])
+    // setEntries is a useState setter from App, so it's referentially stable —
+    // including it satisfies exhaustive-deps without ever re-running the effect
+  }, [userId, refreshKey, setEntries])
 
   const genres = useMemo(() => {
     const set = new Set<string>()
