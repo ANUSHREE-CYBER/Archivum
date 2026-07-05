@@ -109,36 +109,39 @@ function App() {
               animate={{ opacity: 1, scale: 1, y: 0, transition: { duration: 0.35, ease: 'easeInOut' } }}
               exit={{ opacity: 0, scale: 0.97, y: 8, transition: { duration: 0.25, ease: 'easeInOut' } }}
             >
-              {/* Vault identity header — display only, no controls */}
+              {/* Vault identity header — title + counts left, +Add toggle right.
+                  The Add drawer slides out directly below this row. */}
               <div
-                className="flex items-baseline gap-3 px-6"
+                className="flex items-center justify-between gap-3 px-6"
                 style={{ minHeight: 40, paddingTop: 14, marginBottom: 16 }}
               >
-                <h1
-                  style={{
-                    fontFamily: "Georgia, 'Times New Roman', serif",
-                    fontSize: 23,
-                    fontWeight: 400,
-                    letterSpacing: '0.02em',
-                    color: 'var(--color-text)',
-                    margin: 0,
-                  }}
-                >
-                  The Vault
-                </h1>
-                {countLine && (
-                  <span style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>
-                    {countLine}
-                  </span>
-                )}
-              </div>
+                <div className="flex items-baseline gap-3">
+                  <h1
+                    style={{
+                      fontFamily: "Georgia, 'Times New Roman', serif",
+                      fontSize: 23,
+                      fontWeight: 400,
+                      letterSpacing: '0.02em',
+                      color: 'var(--color-text)',
+                      margin: 0,
+                      textShadow: '0 1px 6px rgba(8, 8, 8, 0.9)',
+                    }}
+                  >
+                    The Vault
+                  </h1>
+                  {countLine && (
+                    <span
+                      style={{
+                        fontSize: 13,
+                        color: 'var(--color-text-muted)',
+                        textShadow: '0 1px 6px rgba(8, 8, 8, 0.9)',
+                      }}
+                    >
+                      {countLine}
+                    </span>
+                  )}
+                </div>
 
-              {/* Top area: only the +Add toggle — the type tabs live in the
-                  toolbar row inside EntryList now */}
-              <div
-                className="flex items-center justify-end gap-3 px-6 py-3"
-                style={{ borderBottom: '1px solid var(--color-border)' }}
-              >
                 <button
                   onClick={() => setShowAdd(v => !v)}
                   className="text-sm font-medium cursor-pointer flex-shrink-0"
