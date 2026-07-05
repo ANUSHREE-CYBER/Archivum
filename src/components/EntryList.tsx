@@ -376,6 +376,19 @@ function EntryCard({ entry, index, onClick, selectionMode, selected, onToggleSel
   )
 }
 
+// Two line segments with a 12px gap around the diamond — reads as one rule
+// that breaks around the ornament, without needing a background patch to mask
+// the line (a solid patch would show against the aurora).
+function OrnamentDivider() {
+  return (
+    <div className="flex items-center px-6" style={{ margin: '20px 0', gap: 12 }} aria-hidden="true">
+      <span className="flex-1" style={{ height: 1, background: 'var(--color-border)' }} />
+      <span style={{ color: 'var(--color-gold)', fontSize: 8, lineHeight: 1 }}>◆</span>
+      <span className="flex-1" style={{ height: 1, background: 'var(--color-border)' }} />
+    </div>
+  )
+}
+
 function SkeletonCard() {
   return (
     <div
@@ -721,10 +734,12 @@ export default function EntryList({ userId, refreshKey, typeFilter, onTypeFilter
         <p className="text-xs px-6 pb-2" style={{ color: 'var(--color-danger)' }}>{bulkDeleteError}</p>
       )}
 
+      <OrnamentDivider />
+
       {tabEntries.length === 0 && <EmptyState tab={typeFilter} />}
 
       {tabEntries.length > 0 && inProgress.length > 0 && (
-        <div className="pt-4 pb-2">
+        <div className="pb-2">
           <h2 className="text-sm font-semibold px-6 mb-3" style={{ color: 'var(--color-text)' }}>
             Continue
           </h2>
