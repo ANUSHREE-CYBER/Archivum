@@ -111,35 +111,32 @@ function EntryCard({ entry, index, onClick, selectionMode, selected, onToggleSel
       exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.15 } }}
       transition={{ layout: { type: 'spring', stiffness: 200, damping: 25 } }}
       whileHover={{
-        scale: 1.04,
-        y: -3,
         boxShadow: '0 0 20px 3px rgba(212,175,106,0.35)',
-        transition: { duration: 0.25, ease: 'easeOut' },
+        transition: { duration: 0.3, ease: 'easeOut' },
       }}
       onClick={() => (selectionMode ? onToggleSelect?.() : onClick())}
-      className="group flex flex-col gap-2 text-left cursor-pointer w-full"
+      className="group flex flex-col text-left cursor-pointer w-full overflow-hidden"
       style={{
-        background: 'none',
-        border: 'none',
+        background: 'var(--color-surface)',
+        border: '1px solid var(--color-border)',
         padding: 0,
-        borderRadius: 6,
+        borderRadius: 12,
         boxShadow: '0 0 0px 0px rgba(212,175,106,0)',
         opacity: selectionMode && !selected ? 0.7 : 1,
-        transformOrigin: 'bottom center',
         transition: 'opacity 0.2s ease',
       }}
     >
-      <div className="relative w-full overflow-hidden rounded" style={{ aspectRatio: '2/3' }}>
+      <div className="relative w-full overflow-hidden" style={{ aspectRatio: '2/3' }}>
         {!showFallback ? (
           <img
             src={sharpPoster(entry.poster_url)!}
             alt={entry.title}
             onError={() => setImgError(true)}
-            className="w-full h-full rounded object-cover transition-[filter] duration-300 group-hover:brightness-110"
+            className="w-full h-full object-cover transition-[transform,filter] duration-300 ease-out group-hover:scale-105 group-hover:brightness-110"
           />
         ) : (
           <div
-            className="w-full h-full rounded flex items-center justify-center p-3 text-center"
+            className="w-full h-full flex items-center justify-center p-3 text-center"
             style={{ background: 'linear-gradient(180deg, #171717 0%, #0c0c0c 100%)' }}
           >
             <span
@@ -182,18 +179,26 @@ function EntryCard({ entry, index, onClick, selectionMode, selected, onToggleSel
           </span>
         )}
       </div>
-      <div className="flex flex-col gap-1">
+      {/* Fixed-height rows (1-line title, always-rendered meta row) keep every
+          card the same height so the badge lands in the same spot on each. */}
+      <div className="flex flex-col gap-1.5 w-full" style={{ padding: '10px 12px 12px' }}>
         <span
-          className="text-sm font-medium leading-tight line-clamp-2"
+          className="text-sm font-medium truncate w-full"
+          title={entry.title}
           style={{ color: 'var(--color-text)' }}
         >
           {entry.title}
         </span>
-        {entry.year && (
+        <div className="flex items-center justify-between w-full" style={{ height: 16 }}>
           <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-            {entry.year}
+            {entry.year ?? ''}
           </span>
-        )}
+          {entry.rating !== null && (
+            <span className="text-xs font-semibold" style={{ color: 'var(--color-gold)' }}>
+              {entry.rating}/10
+            </span>
+          )}
+        </div>
         <span
           className="text-xs rounded-full px-2 py-0.5 self-start font-medium"
           style={{
@@ -203,11 +208,6 @@ function EntryCard({ entry, index, onClick, selectionMode, selected, onToggleSel
         >
           {statusLabel(entry.status, entry.type)}
         </span>
-        {entry.rating !== null && (
-          <span className="text-xs font-semibold" style={{ color: 'var(--color-gold)' }}>
-            {entry.rating}/10
-          </span>
-        )}
       </div>
     </motion.button>
     </div>
@@ -216,12 +216,19 @@ function EntryCard({ entry, index, onClick, selectionMode, selected, onToggleSel
 
 function SkeletonCard() {
   return (
-    <div className="flex flex-col gap-2 w-full">
-      <div className="skeleton-shimmer rounded w-full" style={{ aspectRatio: '2/3' }} />
-      <div className="flex flex-col gap-1">
+    <div
+      className="flex flex-col w-full overflow-hidden"
+      style={{
+        background: 'var(--color-surface)',
+        border: '1px solid var(--color-border)',
+        borderRadius: 12,
+      }}
+    >
+      <div className="skeleton-shimmer w-full" style={{ aspectRatio: '2/3' }} />
+      <div className="flex flex-col gap-1.5" style={{ padding: '10px 12px 12px' }}>
         <div className="skeleton-shimmer rounded" style={{ height: 14, width: '85%' }} />
-        <div className="skeleton-shimmer rounded" style={{ height: 11, width: '30%' }} />
-        <div className="skeleton-shimmer rounded-full" style={{ height: 16, width: 56 }} />
+        <div className="skeleton-shimmer rounded" style={{ height: 12, width: '30%' }} />
+        <div className="skeleton-shimmer rounded-full" style={{ height: 18, width: 64 }} />
       </div>
     </div>
   )
@@ -235,8 +242,8 @@ function SkeletonShelf() {
       </h2>
       <div className="flex gap-4 overflow-x-auto px-6 pb-2">
         {Array.from({ length: 4 }, (_, i) => (
-          <div key={i} style={{ width: 130, flexShrink: 0 }}>
-            <div className="skeleton-shimmer rounded w-full" style={{ aspectRatio: '2/3' }} />
+          <div key={i} style={{ width: 150, flexShrink: 0 }}>
+            <div className="skeleton-shimmer rounded-xl w-full" style={{ aspectRatio: '2/3' }} />
           </div>
         ))}
       </div>
@@ -381,8 +388,8 @@ export default function EntryList({ userId, refreshKey, typeFilter }: Props) {
       <>
         <SkeletonShelf />
         <div
-          className="grid gap-4 px-6 pt-6 pb-10"
-          style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))' }}
+          className="grid gap-6 px-6 pt-6 pb-10"
+          style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}
         >
           {Array.from({ length: 10 }, (_, i) => <SkeletonCard key={i} />)}
         </div>
@@ -407,7 +414,7 @@ export default function EntryList({ userId, refreshKey, typeFilter }: Props) {
           </h2>
           <div className="flex gap-4 overflow-x-auto px-6 pb-2">
             {inProgress.map((entry, i) => (
-              <div key={entry.id} style={{ width: 130, flexShrink: 0 }}>
+              <div key={entry.id} style={{ width: 150, flexShrink: 0 }}>
                 <EntryCard entry={entry} index={i} onClick={() => setEditing(entry)} />
               </div>
             ))}
@@ -522,8 +529,8 @@ export default function EntryList({ userId, refreshKey, typeFilter }: Props) {
         </p>
       ) : (
         <div
-          className="grid gap-4 px-6 pb-10"
-          style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))' }}
+          className="grid gap-6 px-6 pb-10"
+          style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}
         >
           <AnimatePresence mode="popLayout">
           {visible.map((entry, i) => (
