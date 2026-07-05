@@ -233,8 +233,12 @@ function EntryCard({ entry, index, onClick, selectionMode, selected, onToggleSel
             {entry.year ?? ''}
           </span>
           {entry.rating !== null && (
-            <span className="text-xs font-semibold" style={{ color: 'var(--color-gold)' }}>
-              {entry.rating}/10
+            <span
+              className="text-xs font-medium flex items-center gap-1"
+              style={{ color: 'rgba(212,175,106,0.8)' }}
+            >
+              <span aria-hidden="true" style={{ fontSize: 10 }}>★</span>
+              {entry.rating}
             </span>
           )}
         </div>
