@@ -58,7 +58,11 @@ function App() {
       <AuroraBackground className="h-full flex-col items-stretch justify-start vault-page">
         <header
           className="flex items-center justify-between px-6 py-4"
-          style={{ borderBottom: '1px solid var(--color-border)' }}
+          style={{
+            borderBottom: '1px solid var(--color-border)',
+            background: 'rgba(8, 8, 8, 0.6)',
+            backdropFilter: 'blur(4px)',
+          }}
         >
           <div style={{ display: 'flex', gap: 6 }}>
             {(['library', 'stats'] as const).map(view => (
