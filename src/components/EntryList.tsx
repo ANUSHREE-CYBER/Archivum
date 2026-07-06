@@ -128,6 +128,58 @@ function EmptyState({ tab }: { tab: 'all' | Tab }) {
   )
 }
 
+// Shown in place of EmptyState when the fetch itself failed and there's no
+// cached data to fall back on — a failed fetch must never render as "empty".
+function FetchErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="flex items-center justify-center px-6" style={{ minHeight: '45vh' }}>
+      <div
+        className="flex flex-col items-center gap-3 rounded-lg px-6 py-5"
+        style={{ background: 'rgba(8,8,8,0.5)' }}
+      >
+        <p
+          className="text-sm text-center"
+          style={{ color: 'var(--color-danger)', textShadow: '0 1px 8px rgba(8,8,8,0.8)' }}
+        >
+          {message}
+        </p>
+        <button
+          type="button"
+          onClick={onRetry}
+          className="text-xs font-semibold rounded px-4 py-2 cursor-pointer hover:opacity-90"
+          style={{ background: 'var(--color-danger)', color: '#F2EFE9', border: 'none' }}
+        >
+          Retry
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// Non-blocking banner for when the fetch failed but there's still previously-
+// loaded data on screen — the vault stays usable, the user just knows a
+// refresh didn't go through.
+function FetchErrorBanner({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="px-6 pb-3">
+      <div
+        className="flex items-center gap-3 rounded-lg px-4 py-2.5"
+        style={{ background: 'rgba(192,57,43,0.12)', border: '1px solid var(--color-danger)' }}
+      >
+        <p className="text-xs flex-1" style={{ color: 'var(--color-danger)' }}>{message}</p>
+        <button
+          type="button"
+          onClick={onRetry}
+          className="text-xs font-semibold rounded px-2.5 py-1 cursor-pointer hover:opacity-90 flex-shrink-0"
+          style={{ background: 'var(--color-danger)', color: '#F2EFE9', border: 'none' }}
+        >
+          Retry
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // Progress toward completion for in_progress entries, as 0–100, or null when it
 // can't be computed. Each medium pairs a "current" metadata field with a "total":
 // books store currentPage/totalPages (both editable in the modal today), while
@@ -439,6 +491,8 @@ interface Props {
 
 export default function EntryList({ userId, refreshKey, typeFilter, onTypeFilterChange, entries, setEntries }: Props) {
   const [loading, setLoading]         = useState(true)
+  const [fetchError, setFetchError]   = useState<string | null>(null)
+  const [retryTick, setRetryTick]     = useState(0)
   const [editing, setEditing]         = useState<EditableEntry | null>(null)
   const [statusFilter, setStatusFilter]= useState('')
   const [genreFilter,  setGenreFilter] = useState('')
@@ -457,17 +511,24 @@ export default function EntryList({ userId, refreshKey, typeFilter, onTypeFilter
       .select('id, title, year, poster_url, status, rating, type, format, metadata, genres')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
-      .then(({ data }) => {
+      .then(({ data, error }) => {
         // Guard against a stale request (e.g. rapid refreshKey changes) resolving
         // after a newer one and flipping loading back off with outdated data.
         if (cancelled) return
-        setEntries(data ?? [])
+        if (error) {
+          // Leave entries untouched on failure — a fetch error must never look
+          // like an empty vault, and any previously-loaded data stays visible.
+          setFetchError("Couldn't load your vault. Check your connection and try again.")
+        } else {
+          setFetchError(null)
+          setEntries(data ?? [])
+        }
         setLoading(false)
       })
     return () => { cancelled = true }
     // setEntries is a useState setter from App, so it's referentially stable —
     // including it satisfies exhaustive-deps without ever re-running the effect
-  }, [userId, refreshKey, setEntries])
+  }, [userId, refreshKey, retryTick, setEntries])
 
   const genres = useMemo(() => {
     const set = new Set<string>()
@@ -738,9 +799,20 @@ export default function EntryList({ userId, refreshKey, typeFilter, onTypeFilter
         <p className="text-xs px-6 pb-2" style={{ color: 'var(--color-danger)' }}>{bulkDeleteError}</p>
       )}
 
+      {/* Non-blocking: only shown when a failed refresh still left prior data
+          on screen. When there's nothing to fall back on, FetchErrorState
+          below takes over instead of the empty-vault message. */}
+      {fetchError && entries.length > 0 && (
+        <FetchErrorBanner message={fetchError} onRetry={() => setRetryTick(t => t + 1)} />
+      )}
+
       <OrnamentDivider />
 
-      {tabEntries.length === 0 && <EmptyState tab={typeFilter} />}
+      {tabEntries.length === 0 && (
+        fetchError
+          ? <FetchErrorState message={fetchError} onRetry={() => setRetryTick(t => t + 1)} />
+          : <EmptyState tab={typeFilter} />
+      )}
 
       {tabEntries.length > 0 && inProgress.length > 0 && (
         <div className="pb-2">
