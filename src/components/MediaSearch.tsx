@@ -137,6 +137,38 @@ type TaggedAniList  = AniListResult  & { _source: 'anilist' }
 type TaggedMangaDex = MangaDexResult & { _source: 'mangadex' }
 type MangaResult    = TaggedAniList | TaggedMangaDex
 
+// Every result is tagged with the tab that was active when its search was
+// kicked off (captured before the debounced fetch runs, not read live at
+// select time). handleSelect and the results list read this tag instead of
+// the live `tab` state, so a result always parses/saves as what it actually
+// is even if it resolves after the user has switched tabs.
+type TaggedTmdbResult      = TmdbResult     & { _tab: 'movie' | 'tv_show' | 'kdrama' }
+type TaggedAniListAnime    = AniListResult  & { _tab: 'anime' }
+type TaggedOpenLibraryDoc  = OpenLibraryDoc & { _tab: 'book' }
+type TaggedMangaAniList    = TaggedAniList  & { _tab: 'manga' | 'manhwa' }
+type TaggedMangaDexResult  = TaggedMangaDex & { _tab: 'manga' | 'manhwa' }
+
+type SearchResult =
+  | TaggedTmdbResult
+  | TaggedAniListAnime
+  | TaggedOpenLibraryDoc
+  | TaggedMangaAniList
+  | TaggedMangaDexResult
+
+// Explicit type predicates rather than inline `result._tab === '...'` checks —
+// TS's control-flow narrowing doesn't reliably eliminate the manga branch's
+// two members (they share one _tab type) from the trailing `else` when the
+// check is written inline; a named `is` guard narrows reliably at every call site.
+function isAnimeResult(r: SearchResult): r is TaggedAniListAnime {
+  return r._tab === 'anime'
+}
+function isBookResult(r: SearchResult): r is TaggedOpenLibraryDoc {
+  return r._tab === 'book'
+}
+function isMangaResult(r: SearchResult): r is TaggedMangaAniList | TaggedMangaDexResult {
+  return r._tab === 'manga' || r._tab === 'manhwa'
+}
+
 const ANILIST_MANGA_QUERY = `
   query ($search: String) {
     Page(perPage: 10) {
@@ -185,7 +217,7 @@ export default function MediaSearch({ userId, onSaved }: Props) {
   const [tab, setTab] = useState<Tab>('movie')
   const [showManual, setShowManual] = useState(false)
   const [query, setQuery] = useState('')
-  const [results, setResults] = useState<TmdbResult[] | AniListResult[] | OpenLibraryDoc[] | MangaResult[]>([])
+  const [results, setResults] = useState<SearchResult[]>([])
   const [searching, setSearching] = useState(false)
   const [saved, setSaved] = useState<number | string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -195,32 +227,51 @@ export default function MediaSearch({ userId, onSaved }: Props) {
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     setResults([])
+    setSearching(false)
 
     if (!query.trim()) return
+
+    // Captured now, not read live inside the timeout/fetch below — so a
+    // result is always tagged with the tab it was actually searched under.
+    const activeTab = tab
+    let cancelled = false
 
     debounceRef.current = setTimeout(async () => {
       setSearching(true)
       try {
-        if (tab === 'anime') {
-          setResults(await searchAniList(query))
-        } else if (tab === 'book') {
-          setResults(await searchOpenLibrary(query))
-        } else if (tab === 'manga' || tab === 'manhwa') {
-          setResults(await searchMangaWithFallback(query))
+        let fetched: SearchResult[]
+        if (activeTab === 'anime') {
+          const raw = await searchAniList(query)
+          fetched = raw.map(r => ({ ...r, _tab: 'anime' as const }))
+        } else if (activeTab === 'book') {
+          const raw = await searchOpenLibrary(query)
+          fetched = raw.map(r => ({ ...r, _tab: 'book' as const }))
+        } else if (activeTab === 'manga' || activeTab === 'manhwa') {
+          const raw = await searchMangaWithFallback(query)
+          fetched = raw.map(r => ({ ...r, _tab: activeTab }))
         } else {
-          const endpoint = tab === 'movie' ? 'search/movie' : 'search/tv'
+          const endpoint = activeTab === 'movie' ? 'search/movie' : 'search/tv'
           const res = await fetch(
             `https://api.themoviedb.org/3/${endpoint}?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&include_adult=false`
           )
           const data = await res.json()
-          setResults(data.results ?? [])
+          const raw = (data.results ?? []) as TmdbResult[]
+          fetched = raw.map(r => ({ ...r, _tab: activeTab }))
         }
+        // Guard against a stale request (superseded by a newer query or tab
+        // switch) resolving after cleanup has already fired for this run.
+        if (!cancelled) setResults(fetched)
       } catch {
-        setResults([])
+        if (!cancelled) setResults([])
       } finally {
-        setSearching(false)
+        if (!cancelled) setSearching(false)
       }
     }, 400)
+
+    return () => {
+      cancelled = true
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    }
   }, [query, tab])
 
   function switchTab(next: Tab) {
@@ -231,7 +282,7 @@ export default function MediaSearch({ userId, onSaved }: Props) {
     setSaveError('')
   }
 
-  async function handleSelect(result: TmdbResult | AniListResult | OpenLibraryDoc | MangaResult) {
+  async function handleSelect(result: SearchResult) {
     if (saving) return
     setSaving(true)
     setSaved(null)
@@ -246,8 +297,8 @@ export default function MediaSearch({ userId, onSaved }: Props) {
     let genres: string[] | null = null
     let format: 'movie' | 'series' | 'comic' | null = null
 
-    if (tab === 'anime') {
-      const a = result as AniListResult
+    if (isAnimeResult(result)) {
+      const a = result
       title      = a.title.english || a.title.romaji
       year       = a.startDate.year ? String(a.startDate.year) : null
       poster_url = a.coverImage.large ?? a.coverImage.medium ?? null
@@ -255,8 +306,8 @@ export default function MediaSearch({ userId, onSaved }: Props) {
       source_id  = String(a.id)
       genres     = a.genres.length > 0 ? a.genres : null
       format     = anilistFormat(a.format)
-    } else if (tab === 'book') {
-      const b = result as OpenLibraryDoc
+    } else if (isBookResult(result)) {
+      const b = result
       const author = b.author_name?.[0] ?? null
       title      = b.title
       year       = b.first_publish_year ? String(b.first_publish_year) : null
@@ -264,11 +315,11 @@ export default function MediaSearch({ userId, onSaved }: Props) {
       source_api = 'openlibrary'
       source_id  = b.key
       metadata   = author ? { author } : undefined
-    } else if (tab === 'manga' || tab === 'manhwa') {
-      const mr = result as MangaResult
+    } else if (isMangaResult(result)) {
+      const mr = result
       format = 'comic'
       if (mr._source === 'anilist') {
-        const a = mr as TaggedAniList
+        const a = mr
         title      = a.title.english || a.title.romaji
         year       = a.startDate.year ? String(a.startDate.year) : null
         poster_url = a.coverImage.large ?? a.coverImage.medium ?? null
@@ -276,7 +327,7 @@ export default function MediaSearch({ userId, onSaved }: Props) {
         source_id  = String(a.id)
         genres     = a.genres.length > 0 ? a.genres : null
       } else {
-        const m = mr as TaggedMangaDex
+        const m = mr
         title      = m.attributes.title.en ?? Object.values(m.attributes.title)[0] ?? ''
         year       = m.attributes.year ? String(m.attributes.year) : null
         const coverRel = m.relationships.find(r => r.type === 'cover_art')
@@ -287,16 +338,16 @@ export default function MediaSearch({ userId, onSaved }: Props) {
         source_id  = m.id
       }
     } else {
-      const t = result as TmdbResult
+      const t = result
       title      = isTV(t) ? t.name : t.title
       const date = isTV(t) ? t.first_air_date : t.release_date
       year       = date ? date.slice(0, 4) : null
       poster_url = t.poster_path ? `${TMDB_IMAGE_BASE}${t.poster_path}` : null
       source_api = 'tmdb'
       source_id  = String(t.id)
-      genres     = tmdbGenreNames(t.genre_ids ?? [], tab === 'movie')
+      genres     = tmdbGenreNames(t.genre_ids ?? [], result._tab === 'movie')
       if (genres.length === 0) genres = null
-      format     = tab === 'movie' ? 'movie' : 'series'
+      format     = result._tab === 'movie' ? 'movie' : 'series'
     }
 
     const { error } = await supabase.from('entries').insert({
@@ -304,7 +355,7 @@ export default function MediaSearch({ userId, onSaved }: Props) {
       title,
       year,
       poster_url,
-      type: tab,
+      type: result._tab,
       format,
       status: 'plan_to_watch',
       source_api,
@@ -319,9 +370,9 @@ export default function MediaSearch({ userId, onSaved }: Props) {
       toast.error(error.message, { style: { border: '1px solid var(--color-danger)' } })
     } else {
       setSaved(
-        tab === 'book' ? (result as OpenLibraryDoc).key :
-        (tab === 'manga' || tab === 'manhwa') && (result as MangaResult)._source === 'mangadex' ? (result as TaggedMangaDex).id :
-        (result as TmdbResult | AniListResult).id
+        isBookResult(result) ? result.key :
+        isMangaResult(result) && result._source === 'mangadex' ? result.id :
+        (result as TaggedTmdbResult | TaggedAniListAnime).id
       )
       setQuery('')
       setResults([])
@@ -440,29 +491,29 @@ export default function MediaSearch({ userId, onSaved }: Props) {
             let posterSrc: string | null
             let subtitle: string | null = null
 
-            if (tab === 'book') {
-              const b = result as OpenLibraryDoc
+            if (isBookResult(result)) {
+              const b = result
               rowKey      = b.key
               title       = b.title
               displayYear = b.first_publish_year ? String(b.first_publish_year) : null
               posterSrc   = b.cover_i ? `https://covers.openlibrary.org/b/id/${b.cover_i}-L.jpg` : null
               subtitle    = b.author_name?.[0] ?? null
-            } else if (tab === 'anime') {
-              const a = result as AniListResult
+            } else if (isAnimeResult(result)) {
+              const a = result
               rowKey      = String(a.id)
               title       = a.title.english || a.title.romaji
               displayYear = a.startDate.year ? String(a.startDate.year) : null
               posterSrc   = a.coverImage.large ?? a.coverImage.medium ?? null
-            } else if (tab === 'manga' || tab === 'manhwa') {
-              const mr = result as MangaResult
+            } else if (isMangaResult(result)) {
+              const mr = result
               if (mr._source === 'anilist') {
-                const a = mr as TaggedAniList
+                const a = mr
                 rowKey      = String(a.id)
                 title       = a.title.english || a.title.romaji
                 displayYear = a.startDate.year ? String(a.startDate.year) : null
                 posterSrc   = a.coverImage.large ?? a.coverImage.medium ?? null
               } else {
-                const m = mr as TaggedMangaDex
+                const m = mr
                 rowKey      = m.id
                 title       = m.attributes.title.en ?? Object.values(m.attributes.title)[0] ?? ''
                 displayYear = m.attributes.year ? String(m.attributes.year) : null
@@ -472,7 +523,7 @@ export default function MediaSearch({ userId, onSaved }: Props) {
                   : null
               }
             } else {
-              const t = result as TmdbResult
+              const t = result
               rowKey      = String(t.id)
               title       = isTV(t) ? t.name : t.title
               const date  = isTV(t) ? t.first_air_date : t.release_date
