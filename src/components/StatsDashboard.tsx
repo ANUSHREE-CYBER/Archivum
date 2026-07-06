@@ -73,22 +73,55 @@ const chartLabel: React.CSSProperties = {
 export default function StatsDashboard({ userId }: { userId: string }) {
   const [entries, setEntries] = useState<Entry[]>([])
   const [loading, setLoading] = useState(true)
+  const [fetchError, setFetchError] = useState<string | null>(null)
+  const [retryTick, setRetryTick] = useState(0)
 
   useEffect(() => {
+    let cancelled = false
+    setLoading(true)
     supabase
       .from('entries')
       .select('id, type, status, rating, year, genres')
       .eq('user_id', userId)
-      .then(({ data }) => {
-        setEntries(data ?? [])
+      .then(({ data, error }) => {
+        // Guard against a stale request (e.g. rapid retries) resolving after
+        // a newer one and flipping loading back off with outdated data.
+        if (cancelled) return
+        if (error) {
+          // Leave entries untouched on failure — a fetch error must never
+          // look like "no entries yet", and any cached stats stay visible.
+          setFetchError("Couldn't load your stats. Check your connection and try again.")
+        } else {
+          setFetchError(null)
+          setEntries(data ?? [])
+        }
         setLoading(false)
       })
-  }, [userId])
+    return () => { cancelled = true }
+  }, [userId, retryTick])
 
   if (loading) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 360, color: '#6B6660' }}>
         Loading…
+      </div>
+    )
+  }
+
+  if (fetchError && entries.length === 0) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 360, gap: 12, color: '#6B6660' }}>
+        <p style={{ fontSize: '1.05rem', margin: 0, color: '#C0392B' }}>{fetchError}</p>
+        <button
+          type="button"
+          onClick={() => setRetryTick(t => t + 1)}
+          style={{
+            background: '#C0392B', color: '#F2EFE9', border: 'none', borderRadius: 6,
+            padding: '8px 18px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer',
+          }}
+        >
+          Retry
+        </button>
       </div>
     )
   }
@@ -146,6 +179,30 @@ export default function StatsDashboard({ userId }: { userId: string }) {
 
   return (
     <div style={{ padding: '36px 24px', maxWidth: 980, margin: '0 auto' }}>
+      {/* Non-blocking: shown when a refresh failed but there's still
+          previously-loaded data to chart, so stats stay visible. */}
+      {fetchError && (
+        <div
+          style={{
+            display: 'flex', alignItems: 'center', gap: 12,
+            background: 'rgba(192,57,43,0.12)', border: '1px solid #C0392B',
+            borderRadius: 8, padding: '10px 16px', marginBottom: 20,
+          }}
+        >
+          <p style={{ flex: 1, margin: 0, fontSize: '0.8rem', color: '#C0392B' }}>{fetchError}</p>
+          <button
+            type="button"
+            onClick={() => setRetryTick(t => t + 1)}
+            style={{
+              background: '#C0392B', color: '#F2EFE9', border: 'none', borderRadius: 6,
+              padding: '6px 14px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', flexShrink: 0,
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Summary cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 36 }}>
         {[
