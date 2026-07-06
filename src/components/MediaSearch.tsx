@@ -99,7 +99,11 @@ async function searchAniList(search: string): Promise<AniListResult[]> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ query: ANILIST_QUERY, variables: { search } }),
   })
+  if (!res.ok) throw new Error('AniList request failed')
   const json = await res.json()
+  // GraphQL errors ride inside a 200 OK body, not the HTTP status — check
+  // the errors array explicitly or a failed query silently reads as "no results".
+  if (json?.errors) throw new Error('AniList query failed')
   return json?.data?.Page?.media ?? []
 }
 
@@ -116,6 +120,7 @@ async function searchOpenLibrary(query: string): Promise<OpenLibraryDoc[]> {
   const res = await fetch(
     `https://openlibrary.org/search.json?q=${encodeURIComponent(query)}&limit=10&fields=key,title,author_name,first_publish_year,cover_i`
   )
+  if (!res.ok) throw new Error('Open Library request failed')
   const json = await res.json()
   return json?.docs ?? []
 }
@@ -189,7 +194,9 @@ async function searchAniListManga(search: string): Promise<AniListResult[]> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ query: ANILIST_MANGA_QUERY, variables: { search } }),
   })
+  if (!res.ok) throw new Error('AniList request failed')
   const json = await res.json()
+  if (json?.errors) throw new Error('AniList query failed')
   return json?.data?.Page?.media ?? []
 }
 
@@ -197,12 +204,22 @@ async function searchMangaDex(query: string): Promise<MangaDexResult[]> {
   const res = await fetch(
     `https://api.mangadex.org/manga?title=${encodeURIComponent(query)}&includes[]=cover_art&limit=10`
   )
+  if (!res.ok) throw new Error('MangaDex request failed')
   const json = await res.json()
   return json?.data ?? []
 }
 
 async function searchMangaWithFallback(query: string): Promise<MangaResult[]> {
-  const anilist = await searchAniListManga(query)
+  // A failed AniList leg falls through to MangaDex rather than surfacing an
+  // error immediately — that mirrors the existing "no AniList results, try
+  // MangaDex" fallback intent. Only report failure if MangaDex fails too,
+  // since there's nowhere left to fall back to at that point.
+  let anilist: AniListResult[] = []
+  try {
+    anilist = await searchAniListManga(query)
+  } catch {
+    anilist = []
+  }
   if (anilist.length > 0) return anilist.map(r => ({ ...r, _source: 'anilist' as const }))
   const mangadex = await searchMangaDex(query)
   return mangadex.map(r => ({ ...r, _source: 'mangadex' as const }))
@@ -219,6 +236,12 @@ export default function MediaSearch({ userId, onSaved }: Props) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
   const [searching, setSearching] = useState(false)
+  const [searchError, setSearchError] = useState<string | null>(null)
+  // True once a search has actually completed (success or failure) for the
+  // current query/tab — distinguishes "zero results" from "haven't searched
+  // yet" (idle, or still within the debounce window before the fetch fires).
+  const [hasSearched, setHasSearched] = useState(false)
+  const [searchRetryTick, setSearchRetryTick] = useState(0)
   const [saved, setSaved] = useState<number | string | null>(null)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
@@ -228,6 +251,8 @@ export default function MediaSearch({ userId, onSaved }: Props) {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     setResults([])
     setSearching(false)
+    setSearchError(null)
+    setHasSearched(false)
 
     if (!query.trim()) return
 
@@ -254,15 +279,24 @@ export default function MediaSearch({ userId, onSaved }: Props) {
           const res = await fetch(
             `https://api.themoviedb.org/3/${endpoint}?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&include_adult=false`
           )
+          if (!res.ok) throw new Error('TMDB request failed')
           const data = await res.json()
           const raw = (data.results ?? []) as TmdbResult[]
           fetched = raw.map(r => ({ ...r, _tab: activeTab }))
         }
         // Guard against a stale request (superseded by a newer query or tab
         // switch) resolving after cleanup has already fired for this run.
-        if (!cancelled) setResults(fetched)
+        if (!cancelled) {
+          setResults(fetched)
+          setSearchError(null)
+          setHasSearched(true)
+        }
       } catch {
-        if (!cancelled) setResults([])
+        if (!cancelled) {
+          setResults([])
+          setSearchError('Search failed — check your connection and try again.')
+          setHasSearched(true)
+        }
       } finally {
         if (!cancelled) setSearching(false)
       }
@@ -272,7 +306,7 @@ export default function MediaSearch({ userId, onSaved }: Props) {
       cancelled = true
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [query, tab])
+  }, [query, tab, searchRetryTick])
 
   function switchTab(next: Tab) {
     setTab(next)
@@ -467,6 +501,37 @@ export default function MediaSearch({ userId, onSaved }: Props) {
       {searching && (
         <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
           Searching…
+        </p>
+      )}
+
+      {!searching && searchError && (
+        <div className="flex items-center gap-3">
+          <p className="text-sm flex-1" style={{ color: 'var(--color-danger)' }}>
+            {searchError}
+          </p>
+          <button
+            type="button"
+            onClick={() => setSearchRetryTick(t => t + 1)}
+            className="text-xs font-semibold rounded px-2.5 py-1.5 cursor-pointer hover:opacity-90 flex-shrink-0"
+            style={{ background: 'var(--color-danger)', color: '#F2EFE9', border: 'none' }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {!searching && !searchError && hasSearched && results.length === 0 && (
+        <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+          No results found — try{' '}
+          <button
+            type="button"
+            onClick={() => setShowManual(true)}
+            className="cursor-pointer underline"
+            style={{ background: 'none', border: 'none', padding: 0, color: 'var(--color-gold)' }}
+          >
+            adding manually
+          </button>
+          .
         </p>
       )}
 
