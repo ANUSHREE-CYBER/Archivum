@@ -121,15 +121,22 @@ export default function EntryEditModal({ entry, onClose, onSaved, onDeleted }: P
     )
     const updatedMetadata = { ...meta, ...cleanProgress }
 
-    const { error: err } = await supabase
+    const { data, error: err } = await supabase
       .from('entries')
       .update({ status, rating, metadata: updatedMetadata })
       .eq('id', entry.id)
+      .select('id')
 
     setSaving(false)
     if (err) {
       setError(err.message)
       toast.error(err.message, { style: { border: '1px solid var(--color-danger)' } })
+    } else if ((data ?? []).length === 0) {
+      // Zero rows matched — the entry was likely deleted elsewhere or blocked
+      // by RLS. Leave the modal open with the user's edits intact instead of
+      // closing as if the save persisted, since they're actively looking at it.
+      setError("Couldn't save — this entry may have been removed. Close and refresh to check.")
+      toast.error(`Couldn't save ${entry.title}`, { style: { border: '1px solid var(--color-danger)' } })
     } else {
       if (status !== entry.status) {
         if (status === 'completed') {

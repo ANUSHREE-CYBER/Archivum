@@ -582,13 +582,25 @@ export default function EntryList({ userId, refreshKey, typeFilter, onTypeFilter
   }
 
   async function quickSetStatus(entry: EditableEntry, next: string) {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('entries')
       .update({ status: next })
       .eq('id', entry.id)
+      .select('id')
 
     if (error) {
       toast.error(error.message, { style: { border: '1px solid var(--color-danger)' } })
+      return
+    }
+
+    if ((data ?? []).length === 0) {
+      // Zero rows matched — the entry was likely deleted elsewhere or blocked
+      // by RLS. Don't claim success or update local state for a change that
+      // never persisted; refetch so the grid reflects what's actually there.
+      toast.error("Couldn't update status — entry may have been removed", {
+        style: { border: '1px solid var(--color-danger)' },
+      })
+      setRetryTick(t => t + 1)
       return
     }
 
