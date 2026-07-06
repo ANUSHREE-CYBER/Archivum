@@ -612,6 +612,8 @@ export default function MediaSearch({ userId, onSaved }: Props) {
                     <img
                       src={posterSrc}
                       alt=""
+                      loading="lazy"
+                      decoding="async"
                       className="w-10 h-14 object-cover rounded flex-shrink-0"
                     />
                   ) : (
