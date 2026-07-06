@@ -28,7 +28,7 @@ Flat, shallow layout — no `hooks/`, `utils/`, `types/`, or `services/` directo
 
 - `src/pages/` — `LandingPage.tsx` (active); `LoginPage.tsx` is unused dead code kept for reference
 - `src/components/` — `MediaSearch.tsx`, `EntryList.tsx`, `EntryEditModal.tsx`, `ManualEntryModal.tsx`, `StatsDashboard.tsx`, `SmoothCursor.tsx`, `AuroraBackground.tsx` (animated gold aurora background for the vault page), `Dropdown.tsx` (custom themed dropdown, replaces native selects)
-- `src/lib/` — `supabase.ts` (Supabase client init), `utils.ts` (`cn()` utility using clsx + tailwind-merge), `useSpotlightEffect.ts` (canvas spotlight hook used by the landing page)
+- `src/lib/` — `supabase.ts` (Supabase client init), `utils.ts` (`cn()` utility using clsx + tailwind-merge), `useSpotlightEffect.ts` (canvas spotlight hook used by the landing page), `statusColors.ts` (shared `STATUS_COLORS` constant used by both the vault grid and stats dashboard)
 - `src/assets/` — static SVGs and `Posters/` images
 
 ## External APIs
@@ -53,7 +53,7 @@ The logged-in view (`App.tsx` + `EntryList.tsx`). Layout top to bottom: identity
 
 - Gold aurora animated background (Aceternity-based, 40% opacity, `mix-blend-screen`, `position: fixed`) behind everything via `AuroraBackground`
 - Card design: `#111111` surface, `#1E1E1E` border, 12px radius, 6–7 cards per row (`repeat(auto-fill, minmax(180px, 1fr))`), 24px grid gap, poster hover zoom 1.05 inside the frame (card itself doesn't scale; gold glow on the card container)
-- Status badge colors: Completed gold, In Progress green, Plan to Watch/Read red, On Hold purple, Dropped grey (`STATUS_STYLES` in `EntryList.tsx`)
+- Status badge colors: Completed gold, In Progress green, Plan to Watch/Read red, On Hold purple, Dropped grey (`STATUS_COLORS` in `src/lib/statusColors.ts`, shared with `StatsDashboard`; `STATUS_TEXT_COLORS` stays local to `EntryList.tsx` for badge text contrast)
 - Type indicator dots: 7 muted per-type colors (`TYPE_DOT_COLORS`), top-left of poster
 - Continue shelf: horizontal scrollable row of in-progress entries, respects the active tab filter
 - `format` column: nullable `'movie' | 'series' | 'comic'` for cross-category classification (e.g. anime films)
@@ -67,6 +67,23 @@ The logged-in view (`App.tsx` + `EntryList.tsx`). Layout top to bottom: identity
 - Per-tab empty states with the tab's type-dot color as an accent; the generic "No entries match these filters." only shows when filters exclude a non-empty tab
 - Skeleton loading states with CSS shimmer animation
 
+## Code review and hardening (Day 9)
+
+A full codebase review was done by Claude Fable 5, covering bugs, TypeScript issues, performance, security, accessibility, and UX gaps. Fixes were then implemented and committed one at a time (Sonnet 5), each verified with `npm run build` before commit.
+
+**Critical fixes:**
+- `MediaSearch.tsx` search race condition — the debounced search effect had no cleanup, so a stale in-flight fetch could resolve after the user switched tabs or typed further and get mis-parsed under the wrong shape (or silently corrupt an insert). Fixed by tagging every result with a `_tab` discriminant captured at fetch time (not read live from state), plus a proper `cancelled` flag + cleanup function on the effect.
+- `EntryList.tsx` and `StatsDashboard.tsx` fetch error handling — both only destructured `{ data }` from Supabase responses, so a failed fetch (network error, expired session, RLS denial) returned `data: null` and rendered identically to a genuinely empty vault/stats view. Both now destructure `{ data, error }`, track a dedicated `fetchError` state with a retry button (`retryTick` pattern), and leave existing data on screen rather than clearing it on failure. `StatsDashboard` also gained a request-cancellation guard it previously lacked entirely.
+- Supabase RLS policy incident — see "Known issues" below.
+
+**Important fixes:**
+- `MediaSearch.tsx`: search failures (TMDB non-2xx responses, AniList GraphQL errors riding inside a 200 OK body, genuine network failures) now surface a visible `searchError` with a retry button, distinct from a genuine "No results found — try adding manually" state (tracked via a new `hasSearched` flag so it can't flash during the debounce window). The manga fallback chain (AniList → MangaDex) now also falls back to MangaDex on an AniList *error*, not just an empty result.
+- `EntryList.tsx`'s `quickSetStatus` and `EntryEditModal.tsx`'s `handleSave` now chain `.select('id')` onto their updates (matching the pattern `handleBulkDelete` already used correctly) to detect a zero-row update — e.g. an entry deleted elsewhere or blocked by RLS — instead of showing a success toast for a change that never persisted.
+- Poster `<img>` tags (vault grid and search results) now use `loading="lazy" decoding="async"`.
+- `StatsDashboard` is now lazy-loaded via `React.lazy()` + `Suspense` in `App.tsx`, inside the existing AnimatePresence crossfade — recharts no longer ships in the initial bundle (~1024KB → ~642KB main bundle, confirmed via build output).
+- Status colors unified in new `src/lib/statusColors.ts`, imported by both `EntryList.tsx` and `StatsDashboard.tsx` — they previously had contradictory local maps (gold meant "completed" in one and "in progress" in the other).
+- `App.tsx` clears `entries` state on sign-out (`onAuthStateChange`) so stale counts from a previous session can't flash before the next login's fetch completes.
+
 ## Dependencies added
 
 - `sonner` — toast notifications
@@ -79,6 +96,8 @@ The logged-in view (`App.tsx` + `EntryList.tsx`). Layout top to bottom: identity
 - Progress bars only appear on books currently — the edit modal saves `currentPage`/`totalPages` but doesn't save `totalEpisodes`/`totalChapters` for shows/manga, and the bar requires a total.
 - Poster fallback (and vault header) use the Georgia serif stack — no custom font loaded yet.
 - Tailwind note: `min-[900px]:` is the correct v4 syntax for arbitrary *viewport* breakpoints (compiles to `@media (width >= 900px)`); `@min-[900px]:` is the *container query* variant and silently never matches without an `@container` ancestor.
+- **RESOLVED (Day 9):** the RLS policy on `entries` was found to have been silently replaced at some point after Day 2 with an open "Allow all access for now" policy, instead of the originally correct `auth.uid() = user_id` policy. Discovered via the Fable 5 review's recommendation to verify RLS directly (RLS is a database setting, invisible from source code alone) plus manual Supabase dashboard inspection. Fixed by recreating the correct policy and verifying via `select * from pg_policies where tablename = 'entries'`. Lesson: check RLS policies periodically and directly in the Supabase dashboard — don't assume from old documentation, since policies can change independently of any code commit.
+- Remaining unaddressed items from the Fable 5 review: focus management in modals (`EntryEditModal`, `ManualEntryModal` have no `aria-modal`, no focus trap, no focus return on close), `Dropdown.tsx` missing `aria-activedescendant` for its combobox-lite pattern, `--color-text-muted` contrast below WCAG AA, duplicate `sharpPoster()` function (`EntryList.tsx` + `EntryEditModal.tsx`), no duplicate-entry prevention on insert, the kdrama tab searches all TMDB TV results rather than filtering to Korean shows, `ManualEntryModal` has no format or author field.
 
 ## What's left
 
