@@ -7,6 +7,7 @@ import EntryEditModal, { STATUS_OPTIONS, statusLabel } from './EntryEditModal'
 import type { EditableEntry } from './EntryEditModal'
 import type { Tab } from './MediaSearch'
 import Dropdown from './Dropdown'
+import { STATUS_COLORS } from '../lib/statusColors'
 
 const SORT_OPTIONS = [
   { value: 'newest',    label: 'Newest Added' },
@@ -60,12 +61,14 @@ const SELECT_STYLE = {
   color: 'var(--color-text)',
 }
 
-const STATUS_STYLES: Record<string, { bg: string; text: string }> = {
-  completed:     { bg: '#D4AF6A', text: '#080808' },
-  in_progress:   { bg: '#4CAF82', text: '#080808' },
-  plan_to_watch: { bg: '#C0392B', text: '#F2EFE9' },
-  on_hold:       { bg: '#B58DB6', text: '#080808' },
-  dropped:       { bg: '#6B6660', text: '#F2EFE9' },
+// Text-contrast pairing for each shared status color (badge text color, not
+// part of the shared identity color itself — StatsDashboard doesn't need it).
+const STATUS_TEXT_COLORS: Record<string, string> = {
+  completed:     '#080808',
+  in_progress:   '#080808',
+  plan_to_watch: '#F2EFE9',
+  on_hold:       '#080808',
+  dropped:       '#F2EFE9',
 }
 
 // Muted/desaturated per-type wayfinding colors — deliberately distinct from the status palette above
@@ -281,6 +284,8 @@ function EntryCard({ entry, index, onClick, selectionMode, selected, onToggleSel
           <img
             src={sharpPoster(entry.poster_url)!}
             alt={entry.title}
+            loading="lazy"
+            decoding="async"
             onError={() => setImgError(true)}
             className="w-full h-full object-cover transition-[transform,filter] duration-300 ease-out group-hover:scale-105 group-hover:brightness-110"
           />
@@ -416,8 +421,8 @@ function EntryCard({ entry, index, onClick, selectionMode, selected, onToggleSel
         <span
           className="text-xs rounded-full px-2 py-0.5 self-start font-medium"
           style={{
-            background: (STATUS_STYLES[entry.status] ?? STATUS_STYLES.dropped).bg,
-            color: (STATUS_STYLES[entry.status] ?? STATUS_STYLES.dropped).text,
+            background: STATUS_COLORS[entry.status] ?? STATUS_COLORS.dropped,
+            color: STATUS_TEXT_COLORS[entry.status] ?? STATUS_TEXT_COLORS.dropped,
           }}
         >
           {statusLabel(entry.status, entry.type)}

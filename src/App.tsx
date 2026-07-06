@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Toaster } from 'sonner'
@@ -8,9 +8,20 @@ import MediaSearch from './components/MediaSearch'
 import type { Tab } from './components/MediaSearch'
 import EntryList from './components/EntryList'
 import type { EditableEntry } from './components/EntryEditModal'
-import StatsDashboard from './components/StatsDashboard'
 import SmoothCursor from './components/SmoothCursor'
 import { AuroraBackground } from './components/AuroraBackground'
+
+// Recharts (StatsDashboard's main dependency) is the largest chunk in the
+// app and most sessions never open Stats — load it only when they do.
+const StatsDashboard = lazy(() => import('./components/StatsDashboard'))
+
+function StatsFallback() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 360, color: '#6B6660' }}>
+      Loading…
+    </div>
+  )
+}
 
 function App() {
   const [session, setSession] = useState<Session | null>(null)
@@ -39,6 +50,10 @@ function App() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
+      // Clear stale counts on sign-out so a subsequent login (same or
+      // different account) never briefly flashes the previous session's
+      // header numbers before the new fetch completes.
+      if (!session) setEntries([])
     })
 
     return () => subscription.unsubscribe()
@@ -193,7 +208,9 @@ function App() {
               animate={{ opacity: 1, scale: 1, y: 0, transition: { duration: 0.35, ease: 'easeInOut' } }}
               exit={{ opacity: 0, scale: 0.97, y: 8, transition: { duration: 0.25, ease: 'easeInOut' } }}
             >
-              <StatsDashboard userId={session.user.id} />
+              <Suspense fallback={<StatsFallback />}>
+                <StatsDashboard userId={session.user.id} />
+              </Suspense>
             </motion.div>
           )}
           </AnimatePresence>

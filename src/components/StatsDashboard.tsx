@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { STATUS_COLORS } from '../lib/statusColors'
 import {
   ResponsiveContainer,
   PieChart, Pie, Cell, Tooltip,
@@ -31,14 +32,6 @@ const TYPE_LABELS: Record<string, string> = {
   book: 'Book',
   manga: 'Manga',
   manhwa: 'Manhwa',
-}
-
-const STATUS_COLORS: Record<string, string> = {
-  completed: '#4CAF82',
-  in_progress: '#D4AF6A',
-  plan_to_watch: '#8B7355',
-  on_hold: '#6B6660',
-  dropped: '#C0392B',
 }
 
 const WARM = ['#D4AF6A', '#C49A5A', '#B88848', '#8B6840', '#E8C87A', '#A07848', '#F0D890', '#6B5030']
@@ -237,7 +230,7 @@ export default function StatsDashboard({ userId }: { userId: string }) {
                 stroke="none"
               >
                 {statusData.map(entry => (
-                  <Cell key={entry.key} fill={STATUS_COLORS[entry.key] ?? '#8B7355'} />
+                  <Cell key={entry.key} fill={STATUS_COLORS[entry.key] ?? STATUS_COLORS.dropped} />
                 ))}
               </Pie>
               <Tooltip contentStyle={TT_STYLE} />
@@ -246,7 +239,7 @@ export default function StatsDashboard({ userId }: { userId: string }) {
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 20px', justifyContent: 'center', marginTop: 10 }}>
             {statusData.map(entry => (
               <div key={entry.key} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: STATUS_COLORS[entry.key] ?? '#8B7355', flexShrink: 0 }} />
+                <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: STATUS_COLORS[entry.key] ?? STATUS_COLORS.dropped, flexShrink: 0 }} />
                 <span style={{ fontSize: '0.72rem', color: '#6B6660' }}>{entry.name}</span>
               </div>
             ))}
