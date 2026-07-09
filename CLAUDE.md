@@ -90,6 +90,13 @@ A full codebase review was done by Claude Fable 5, covering bugs, TypeScript iss
 - Status colors unified in new `src/lib/statusColors.ts`, imported by both `EntryList.tsx` and `StatsDashboard.tsx` — they previously had contradictory local maps (gold meant "completed" in one and "in progress" in the other).
 - `App.tsx` clears `entries` state on sign-out (`onAuthStateChange`) so stale counts from a previous session can't flash before the next login's fetch completes.
 
+**Remaining items — completed (2026-07-10):** the seven review items left open after Day 9 are all implemented, committed, and pushed: focus management in both modals (new `src/lib/useModalFocus.ts` — focus trap, initial focus, focus return to trigger, `role="dialog"` + `aria-modal`; native `<dialog>` deliberately avoided because its top layer would cover the SmoothCursor overlay); `Dropdown` accessibility (`aria-activedescendant` with stable `useId`-based option ids, `aria-controls`, Home/End keys); `--color-text-muted` contrast fix (`#6B6660` → `#9A9590`, ~3.5:1 → ~6.8:1, WCAG AA — landing page/StatsDashboard use the old literal and were left as-is); `sharpPoster()` deduplicated into `src/lib/utils.ts`; duplicate-entry prevention (partial unique index on `(user_id, source_api, source_id)` where `source_id is not null` — see "Database changes" — with `23505` caught in `MediaSearch` as an "already in your library" toast); Kdrama tab filters TMDB results by `origin_country` including `KR` (TMDB's `discover/tv` supports origin filtering but not free-text search, hence post-filtering); `ManualEntryModal` gained an optional Format selector (non-book types) and a book-only Author field.
+
+## Visual polish (post-review)
+
+- **3D card tilt on hover** (`EntryCard` in `EntryList.tsx` + `.card-tilt` in `index.css`): cards rotate subtly (max ±7°) following the cursor, hovered side lifting toward it. The transform lives on a dedicated `.card-tilt` wrapper div — it can't go on the entrance-stagger wrapper (whose own transform transition carries a per-card delay) or the Framer Motion `layout` card (FM owns and overwrites that element's inline transform). Written directly to the DOM node via ref + rAF-coalesced mousemove (not React state, which would re-render the card per frame). Applied to both the main grid and the Continue shelf. Gated behind `@media (hover: hover) and (pointer: fine)` (CSS) plus a matching `matchMedia` check (JS); disabled during selection mode, flattening any mid-tilt card.
+- **Glassmorphism on modals**: `EntryEditModal` and `ManualEntryModal` use the Add drawer's frosted-glass recipe — `rgba(17,17,17,0.85)` + `backdrop-filter: blur(12px)`, with an `rgba(255,255,255,0.08)` border. Their page scrim was deliberately lightened from `rgba(0,0,0,0.6)` to `rgba(0,0,0,0.4)`: the scrim sits between the glass and the aurora, and at 0.6 it swallowed the glow before the blur had anything to frost. Do **not** "correct" the scrim back to 0.6 — that kills the frosted effect and was the original bug.
+
 ## Dependencies added
 
 - `sonner` — toast notifications
@@ -103,18 +110,17 @@ A full codebase review was done by Claude Fable 5, covering bugs, TypeScript iss
 - Poster fallback (and vault header) use the Georgia serif stack — no custom font loaded yet.
 - Tailwind note: `min-[900px]:` is the correct v4 syntax for arbitrary *viewport* breakpoints (compiles to `@media (width >= 900px)`); `@min-[900px]:` is the *container query* variant and silently never matches without an `@container` ancestor.
 - **RESOLVED (Day 9):** the RLS policy on `entries` was found to have been silently replaced at some point after Day 2 with an open "Allow all access for now" policy, instead of the originally correct `auth.uid() = user_id` policy. Discovered via the Fable 5 review's recommendation to verify RLS directly (RLS is a database setting, invisible from source code alone) plus manual Supabase dashboard inspection. Fixed by recreating the correct policy and verifying via `select * from pg_policies where tablename = 'entries'`. Lesson: check RLS policies periodically and directly in the Supabase dashboard — don't assume from old documentation, since policies can change independently of any code commit.
-- Remaining unaddressed items from the Fable 5 review: focus management in modals (`EntryEditModal`, `ManualEntryModal` have no `aria-modal`, no focus trap, no focus return on close), `Dropdown.tsx` missing `aria-activedescendant` for its combobox-lite pattern, `--color-text-muted` contrast below WCAG AA, duplicate `sharpPoster()` function (`EntryList.tsx` + `EntryEditModal.tsx`), no duplicate-entry prevention on insert, the kdrama tab searches all TMDB TV results rather than filtering to Korean shows, `ManualEntryModal` has no format or author field.
+- **RESOLVED (2026-07-10):** the seven previously-unaddressed Fable 5 review items (modal focus management, Dropdown `aria-activedescendant`, muted-text contrast, duplicate `sharpPoster()`, duplicate-entry prevention, kdrama origin filtering, ManualEntryModal format/author fields) are all done — see "Code review and hardening" above for details.
+- Spotlight cursor on the vault page was deliberately **not** added (decision, not an omission): the landing page keeps its distinct spotlight effect; the vault does not get one.
+- Mobile responsiveness is deliberately deprioritized for now — out of scope, not forgotten.
 
 ## What's left
 
-- 3D card tilt on hover
-- Spotlight cursor on vault page
-- Glassmorphism on modals
 - Logo/favicon finalization
-- Mobile responsiveness
 - Weekly Supabase ping (GitHub Actions)
 - Deploy to Vercel
 - Add `totalEpisodes`/`totalChapters` to the edit modal so progress bars work beyond books
+- Landing page refinement — needs some polish, specifics TBD
 
 ## Code style
 
