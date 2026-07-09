@@ -173,7 +173,7 @@ export default function EntryEditModal({ entry, onClose, onSaved, onDeleted }: P
     <div
       ref={backdropRef}
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: 'rgba(0,0,0,0.6)' }}
+      style={{ background: 'rgba(0,0,0,0.4)' }}
       onClick={e => { if (e.target === backdropRef.current) onClose() }}
     >
       <div
@@ -183,8 +183,12 @@ export default function EntryEditModal({ entry, onClose, onSaved, onDeleted }: P
         aria-label={`Edit ${entry.title}`}
         className="flex flex-col gap-5 rounded-lg w-full max-w-sm p-6"
         style={{
-          background: 'var(--color-background)',
-          border: '1px solid var(--color-border)',
+          // Frosted glass, same recipe as the Add drawer. The scrim above is
+          // 0.4 (not the drawer-less 0.6 default) so enough aurora light
+          // reaches the glass for the blur to actually read as frosted.
+          background: 'rgba(17, 17, 17, 0.85)',
+          backdropFilter: 'blur(12px)',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
         }}
       >
         {/* header */}
