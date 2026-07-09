@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
@@ -215,6 +215,13 @@ function progressPercent(entry: EditableEntry): number | null {
 const CARD_STAGGER_STEP_MS = 40
 const CARD_STAGGER_CAP_MS = 500
 
+// 3D hover tilt. ±7° at the card edges — the hovered side lifts toward the
+// cursor, like the card is turning to face where you're looking from.
+// Evaluated once: tilt is meaningless without a real pointer, and this JS gate
+// matches the CSS `.card-tilt` media query (same one the quick actions use).
+const TILT_MAX_DEG = 7
+const FINE_POINTER = window.matchMedia('(hover: hover) and (pointer: fine)').matches
+
 function EntryCard({ entry, index, onClick, selectionMode, selected, onToggleSelect, onQuickStatus }: {
   entry: EditableEntry
   index: number
@@ -227,6 +234,8 @@ function EntryCard({ entry, index, onClick, selectionMode, selected, onToggleSel
   const [imgError, setImgError] = useState(false)
   const [entered, setEntered] = useState(false)
   const [statusMenuOpen, setStatusMenuOpen] = useState(false)
+  const tiltRef = useRef<HTMLDivElement>(null)
+  const tiltRafRef = useRef(0)
   const showFallback = !entry.poster_url || imgError
   const progress = progressPercent(entry)
 
@@ -240,10 +249,58 @@ function EntryCard({ entry, index, onClick, selectionMode, selected, onToggleSel
     return () => cancelAnimationFrame(raf)
   }, [])
 
+  // The transform is written straight to the DOM node instead of through
+  // state — a state update would re-render the whole card on every frame of
+  // mouse movement. Coalescing through requestAnimationFrame means at most
+  // one geometry read + style write per frame no matter how fast the mouse
+  // moves, and the rect is read fresh each time so scrolling (the Continue
+  // shelf) never leaves the math stale.
+  function handleTiltMove(e: React.MouseEvent<HTMLDivElement>) {
+    if (!FINE_POINTER || selectionMode) return
+    const el = tiltRef.current
+    if (!el) return
+    const { clientX, clientY } = e
+    cancelAnimationFrame(tiltRafRef.current)
+    tiltRafRef.current = requestAnimationFrame(() => {
+      const rect = el.getBoundingClientRect()
+      const px = (clientX - rect.left) / rect.width - 0.5   // -0.5 … 0.5
+      const py = (clientY - rect.top) / rect.height - 0.5
+      el.style.transform =
+        `perspective(800px) rotateX(${(py * TILT_MAX_DEG * 2).toFixed(2)}deg) rotateY(${(-px * TILT_MAX_DEG * 2).toFixed(2)}deg)`
+    })
+  }
+
+  function handleTiltLeave() {
+    cancelAnimationFrame(tiltRafRef.current)
+    // Emptying the inline transform hands control back to the stylesheet
+    // default (none); .card-tilt's transition eases the card flat again.
+    if (tiltRef.current) tiltRef.current.style.transform = ''
+  }
+
+  // Entering selection mode mid-hover would otherwise freeze the card at
+  // whatever angle it had — flatten it so checkboxes sit on a level grid.
+  useEffect(() => {
+    if (selectionMode) handleTiltLeave()
+  }, [selectionMode])
+
+  useEffect(() => () => cancelAnimationFrame(tiltRafRef.current), [])
+
   return (
     <div
       className={`w-full ${entered ? 'card-visible' : 'card-entering'}`}
       style={{ transitionDelay: `${Math.min(index * CARD_STAGGER_STEP_MS, CARD_STAGGER_CAP_MS)}ms` }}
+    >
+    {/* Dedicated tilt layer: this transform can't live on either neighbor.
+        The stagger wrapper above transitions its own transform with a per-card
+        delay (the tilt would inherit that delay), and Framer Motion owns the
+        motion.div's transform for `layout` animations (it overwrites inline
+        transforms). The glow, border, and poster zoom all live inside, so the
+        whole card tilts as one object. */}
+    <div
+      ref={tiltRef}
+      className="card-tilt"
+      onMouseMove={handleTiltMove}
+      onMouseLeave={handleTiltLeave}
     >
     {/* role="button" div rather than <button> — the hover overlay nests real
         <button>s inside, and buttons can't legally contain buttons */}
@@ -425,6 +482,7 @@ function EntryCard({ entry, index, onClick, selectionMode, selected, onToggleSel
         </span>
       </div>
     </motion.div>
+    </div>
     </div>
   )
 }

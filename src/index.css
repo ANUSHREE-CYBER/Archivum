@@ -67,6 +67,16 @@
   transform: translateY(0);
 }
 
+/* 3D hover tilt — the transform itself is written imperatively from EntryCard
+   (rAF-throttled mousemove); this class only supplies the easing, so per-frame
+   updates glide instead of snapping and mouseleave settles the card flat.
+   Same fine-pointer gate as the quick actions: no tilt on touch devices. */
+@media (hover: hover) and (pointer: fine) {
+  .card-tilt {
+    transition: transform 0.18s ease-out;
+  }
+}
+
 /* Card hover quick actions — hidden by default and only ever revealed inside
    the hover/fine-pointer media query, so touch devices never see them.
    `.group` is Tailwind's group marker class on the card root, usable here

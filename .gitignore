@@ -17,6 +17,10 @@ dist-ssr
 .env.local
 .env.*.local
 
+# Private per-developer Claude Code notes (*.local above only matches names
+# ending in .local, so this needs its own entry)
+CLAUDE.local.md
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
