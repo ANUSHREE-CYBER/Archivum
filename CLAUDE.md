@@ -47,6 +47,12 @@ Set in `.env.local` (gitignored, no `.env.example` exists yet):
 - `VITE_SUPABASE_ANON_KEY`
 - `VITE_TMDB_API_KEY`
 
+## Database changes (manual SQL)
+
+There is no migration tooling — schema/index/policy changes are applied by hand in the Supabase dashboard's SQL editor. Every such change gets a dated record file in `supabase/migrations/` (Supabase CLI naming, in case `supabase db push` is adopted later), with an "Applied on:" line filled in once it's been run. Database state is invisible from source code alone (see the Day 9 RLS incident under Known issues) — these files are the repo's only record of it.
+
+- `20260710_entries_unique_source.sql` — partial unique index on `(user_id, source_api, source_id)` where `source_id is not null`, preventing duplicate API-sourced entries (manual entries exempt). Applied 2026-07-10. `MediaSearch.tsx` depends on it: it catches error `23505` on insert and shows "already in your library".
+
 ## Vault page
 
 The logged-in view (`App.tsx` + `EntryList.tsx`). Layout top to bottom: identity header ("The Vault" serif wordmark + live counts, "+ Add" toggle on the right) → collapsible Add drawer → single toolbar line (uppercase index tabs with per-tab counts on the left; Status/Genre/Select/Sort on the right) → ornament divider (1px line broken by a gold ◆) → Continue shelf → card grid.

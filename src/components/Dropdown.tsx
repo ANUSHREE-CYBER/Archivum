@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 
 export interface DropdownOption {
   value: string
@@ -22,6 +22,11 @@ export default function Dropdown({ options, value, onChange, ariaLabel }: Props)
   const [highlighted, setHighlighted] = useState(0)
   const rootRef = useRef<HTMLDivElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+  // Stable ids so aria-activedescendant on the trigger can point at the
+  // highlighted option — since focus never leaves the trigger, this is the
+  // only way screen readers learn what arrowing through the list lands on.
+  const listboxId = useId()
+  const optionId = (i: number) => `${listboxId}-opt-${i}`
 
   const selected = options.find(o => o.value === value)
 
@@ -67,6 +72,12 @@ export default function Dropdown({ options, value, onChange, ariaLabel }: Props)
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
       setHighlighted(h => Math.max(h - 1, 0))
+    } else if (e.key === 'Home') {
+      e.preventDefault()
+      setHighlighted(0)
+    } else if (e.key === 'End') {
+      e.preventDefault()
+      setHighlighted(options.length - 1)
     } else if (e.key === 'Enter') {
       e.preventDefault()
       choose(options[highlighted].value)
@@ -89,6 +100,8 @@ export default function Dropdown({ options, value, onChange, ariaLabel }: Props)
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={ariaLabel}
+        aria-controls={open ? listboxId : undefined}
+        aria-activedescendant={open ? optionId(highlighted) : undefined}
         onClick={() => (open ? setOpen(false) : openMenu())}
         className={`dropdown-trigger text-xs cursor-pointer ${open ? 'is-open' : ''}`}
       >
@@ -115,6 +128,7 @@ export default function Dropdown({ options, value, onChange, ariaLabel }: Props)
       {open && (
         <div
           ref={menuRef}
+          id={listboxId}
           role="listbox"
           aria-label={ariaLabel}
           className="dropdown-menu absolute left-0 top-full mt-1.5 z-50"
@@ -124,6 +138,7 @@ export default function Dropdown({ options, value, onChange, ariaLabel }: Props)
             return (
               <div
                 key={opt.value || opt.label}
+                id={optionId(i)}
                 role="option"
                 aria-selected={isSelected}
                 className="dropdown-option cursor-pointer"

@@ -52,6 +52,7 @@ interface TmdbTV {
   first_air_date: string
   poster_path: string | null
   genre_ids: number[]
+  origin_country?: string[]
 }
 
 type TmdbResult = TmdbMovie | TmdbTV
@@ -281,7 +282,13 @@ export default function MediaSearch({ userId, onSaved }: Props) {
           )
           if (!res.ok) throw new Error('TMDB request failed')
           const data = await res.json()
-          const raw = (data.results ?? []) as TmdbResult[]
+          let raw = (data.results ?? []) as TmdbResult[]
+          // TMDB's discover/tv endpoint supports with_origin_country=KR but
+          // not free-text search, so the Kdrama tab filters search/tv results
+          // by origin_country instead — otherwise it's just a second TV search.
+          if (activeTab === 'kdrama') {
+            raw = raw.filter(r => isTV(r) && (r.origin_country ?? []).includes('KR'))
+          }
           fetched = raw.map(r => ({ ...r, _tab: activeTab }))
         }
         // Guard against a stale request (superseded by a newer query or tab
@@ -400,8 +407,17 @@ export default function MediaSearch({ userId, onSaved }: Props) {
 
     setSaving(false)
     if (error) {
-      setSaveError(error.message)
-      toast.error(error.message, { style: { border: '1px solid var(--color-danger)' } })
+      // 23505 = Postgres unique violation, from the partial unique index on
+      // (user_id, source_api, source_id) — the user picked something they've
+      // already added, which isn't a failure worth an error state.
+      if (error.code === '23505') {
+        toast(`${title} is already in your library`, {
+          style: { border: '1px solid var(--color-gold)' },
+        })
+      } else {
+        setSaveError(error.message)
+        toast.error(error.message, { style: { border: '1px solid var(--color-danger)' } })
+      }
     } else {
       setSaved(
         isBookResult(result) ? result.key :
@@ -457,7 +473,7 @@ export default function MediaSearch({ userId, onSaved }: Props) {
               key={t.value}
               onClick={() => switchTab(t.value)}
               className={`text-sm font-medium cursor-pointer whitespace-nowrap transition-colors ${
-                tab === t.value ? 'text-[#D4AF6A]' : 'text-[#6B6660] hover:text-[#F2EFE9]'
+                tab === t.value ? 'text-[#D4AF6A]' : 'text-[#9A9590] hover:text-[#F2EFE9]'
               }`}
               style={{
                 background: 'none',
@@ -480,7 +496,7 @@ export default function MediaSearch({ userId, onSaved }: Props) {
             setSaveError('')
             setQuery(e.target.value)
           }}
-          className="flex-1 min-w-0 rounded-lg px-3 text-sm outline-none transition-colors bg-[#0D0D0D] border border-[#1E1E1E] focus:border-[#3A3A3A] placeholder:text-[#6B6660]"
+          className="flex-1 min-w-0 rounded-lg px-3 text-sm outline-none transition-colors bg-[#0D0D0D] border border-[#1E1E1E] focus:border-[#3A3A3A] placeholder:text-[#9A9590]"
           style={{ height: 40, color: 'var(--color-text)' }}
         />
 
