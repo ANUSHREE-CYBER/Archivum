@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { supabase } from '../lib/supabase'
+import { sharpPoster } from '../lib/utils'
+import { useModalFocus } from '../lib/useModalFocus'
 
 export const STATUS_OPTIONS = [
   { value: 'plan_to_watch', label: 'Plan to Watch' },
@@ -68,11 +70,6 @@ function NumField({ label, value, onChange }: {
   )
 }
 
-function sharpPoster(url: string | null): string | null {
-  if (!url || !url.includes('image.tmdb.org')) return url
-  return url.replace('/w92', '/w342')
-}
-
 export default function EntryEditModal({ entry, onClose, onSaved, onDeleted }: Props) {
   const meta = (entry.metadata ?? {}) as Record<string, unknown>
 
@@ -90,6 +87,8 @@ export default function EntryEditModal({ entry, onClose, onSaved, onDeleted }: P
   const [deleting, setDeleting]                 = useState(false)
   const [deleteError, setDeleteError]           = useState('')
   const backdropRef = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  useModalFocus(panelRef)
 
   const { type } = entry
   const isSerial = type === 'tv_show' || type === 'kdrama' || type === 'anime'
@@ -178,6 +177,10 @@ export default function EntryEditModal({ entry, onClose, onSaved, onDeleted }: P
       onClick={e => { if (e.target === backdropRef.current) onClose() }}
     >
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Edit ${entry.title}`}
         className="flex flex-col gap-5 rounded-lg w-full max-w-sm p-6"
         style={{
           background: 'var(--color-background)',

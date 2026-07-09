@@ -8,6 +8,7 @@ import type { EditableEntry } from './EntryEditModal'
 import type { Tab } from './MediaSearch'
 import Dropdown from './Dropdown'
 import { STATUS_COLORS } from '../lib/statusColors'
+import { sharpPoster } from '../lib/utils'
 
 const SORT_OPTIONS = [
   { value: 'newest',    label: 'Newest Added' },
@@ -24,11 +25,6 @@ const STATUS_FILTER_OPTIONS = STATUS_OPTIONS.map(o => ({
     o.value === 'in_progress'   ? 'Watching / Reading' :
     o.label,
 }))
-
-function sharpPoster(url: string | null): string | null {
-  if (!url || !url.includes('image.tmdb.org')) return url
-  return url.replace('/w92', '/w342')
-}
 
 // Tabs match on type, but movie/tv_show also pick up entries of other
 // types whose inferred format crosses over (e.g. an anime film under Movie).

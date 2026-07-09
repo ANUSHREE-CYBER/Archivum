@@ -16,7 +16,9 @@
   --color-background: #080808;
   --color-surface: #111111;
   --color-text: #F2EFE9;
-  --color-text-muted: #6B6660;
+  /* must stay ≥4.5:1 against --color-background for WCAG AA at small sizes
+     (currently ~6.8:1; the old #6B6660 was ~3.5:1 and failed) */
+  --color-text-muted: #9A9590;
   --color-gold: #D4AF6A;
   --color-success: #4CAF82;
   --color-danger: #C0392B;

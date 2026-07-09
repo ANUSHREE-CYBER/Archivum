@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { supabase } from '../lib/supabase'
+import { useModalFocus } from '../lib/useModalFocus'
 
 const TYPE_OPTIONS = [
   { value: 'movie',   label: 'Movie' },
@@ -10,6 +11,15 @@ const TYPE_OPTIONS = [
   { value: 'book',    label: 'Book' },
   { value: 'manga',   label: 'Manga' },
   { value: 'manhwa',  label: 'Manhwa' },
+]
+
+// Mirrors the format column: cross-category classification so e.g. a manually
+// added anime film can surface under the Movie tab like API-sourced ones do.
+const FORMAT_OPTIONS = [
+  { value: '',       label: '—' },
+  { value: 'movie',  label: 'Movie' },
+  { value: 'series', label: 'Series' },
+  { value: 'comic',  label: 'Comic' },
 ]
 
 const INPUT_STYLE = {
@@ -27,12 +37,17 @@ interface Props {
 export default function ManualEntryModal({ userId, onClose, onSaved }: Props) {
   const [title,       setTitle]       = useState('')
   const [type,        setType]        = useState('movie')
+  const [format,      setFormat]      = useState('')
+  const [author,      setAuthor]      = useState('')
   const [year,        setYear]        = useState('')
   const [posterUrl,   setPosterUrl]   = useState('')
   const [genresInput, setGenresInput] = useState('')
   const [saving,      setSaving]      = useState(false)
   const [error,       setError]       = useState('')
   const backdropRef = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const headingId = useId()
+  useModalFocus(panelRef)
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -51,18 +66,20 @@ export default function ManualEntryModal({ userId, onClose, onSaved }: Props) {
     const genresList = genresInput
       ? genresInput.split(',').map(g => g.trim()).filter(Boolean)
       : null
+    const authorTrimmed = author.trim()
 
     const { error: err } = await supabase.from('entries').insert({
       user_id:    userId,
       title:      title.trim(),
       type,
-      format:     null,
+      format:     format || null,
       year:       year || null,
       poster_url: posterUrl.trim() || null,
       genres:     genresList && genresList.length > 0 ? genresList : null,
       status:     'plan_to_watch',
       source_api: 'manual',
       source_id:  null,
+      ...(type === 'book' && authorTrimmed ? { metadata: { author: authorTrimmed } } : {}),
     })
 
     setSaving(false)
@@ -84,13 +101,17 @@ export default function ManualEntryModal({ userId, onClose, onSaved }: Props) {
       onClick={e => { if (e.target === backdropRef.current) onClose() }}
     >
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={headingId}
         className="flex flex-col gap-4 rounded-lg w-full max-w-sm p-6"
         style={{
           background: 'var(--color-background)',
           border: '1px solid var(--color-border)',
         }}
       >
-        <h2 className="font-semibold" style={{ color: 'var(--color-text)' }}>
+        <h2 id={headingId} className="font-semibold" style={{ color: 'var(--color-text)' }}>
           Add manually
         </h2>
 
@@ -113,7 +134,12 @@ export default function ManualEntryModal({ userId, onClose, onSaved }: Props) {
           </label>
           <select
             value={type}
-            onChange={e => setType(e.target.value)}
+            onChange={e => {
+              setType(e.target.value)
+              // A format picked for the previous type (e.g. Comic for a manga)
+              // rarely makes sense for the next one — start over.
+              setFormat('')
+            }}
             className="rounded px-3 py-2 outline-none text-sm"
             style={INPUT_STYLE}
           >
@@ -122,6 +148,43 @@ export default function ManualEntryModal({ userId, onClose, onSaved }: Props) {
             ))}
           </select>
         </div>
+
+        {type !== 'book' && (
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
+              Format{' '}
+              <span className="font-normal" style={{ color: 'var(--color-text-muted)' }}>
+                (optional — cross-lists into Movies / TV)
+              </span>
+            </label>
+            <select
+              value={format}
+              onChange={e => setFormat(e.target.value)}
+              className="rounded px-3 py-2 outline-none text-sm"
+              style={INPUT_STYLE}
+            >
+              {FORMAT_OPTIONS.map(o => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {type === 'book' && (
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
+              Author
+            </label>
+            <input
+              type="text"
+              value={author}
+              onChange={e => setAuthor(e.target.value)}
+              placeholder="e.g. Ursula K. Le Guin"
+              className="rounded px-3 py-2 outline-none text-sm"
+              style={INPUT_STYLE}
+            />
+          </div>
+        )}
 
         <div className="flex flex-col gap-1">
           <label className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
