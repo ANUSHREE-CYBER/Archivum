@@ -22,12 +22,6 @@ const FORMAT_OPTIONS = [
   { value: 'comic',  label: 'Comic' },
 ]
 
-const INPUT_STYLE = {
-  background: 'var(--color-surface)',
-  border: '1px solid var(--color-border)',
-  color: 'var(--color-text)',
-}
-
 interface Props {
   userId: string
   onClose: () => void
@@ -127,8 +121,7 @@ export default function ManualEntryModal({ userId, onClose, onSaved }: Props) {
             type="text"
             value={title}
             onChange={e => setTitle(e.target.value)}
-            className="rounded px-3 py-2 outline-none text-sm"
-            style={INPUT_STYLE}
+            className="vault-input rounded px-3 py-2 text-sm"
           />
         </div>
 
@@ -144,8 +137,7 @@ export default function ManualEntryModal({ userId, onClose, onSaved }: Props) {
               // rarely makes sense for the next one — start over.
               setFormat('')
             }}
-            className="rounded px-3 py-2 outline-none text-sm"
-            style={INPUT_STYLE}
+            className="vault-input rounded px-3 py-2 text-sm"
           >
             {TYPE_OPTIONS.map(o => (
               <option key={o.value} value={o.value}>{o.label}</option>
@@ -164,8 +156,7 @@ export default function ManualEntryModal({ userId, onClose, onSaved }: Props) {
             <select
               value={format}
               onChange={e => setFormat(e.target.value)}
-              className="rounded px-3 py-2 outline-none text-sm"
-              style={INPUT_STYLE}
+              className="vault-input rounded px-3 py-2 text-sm"
             >
               {FORMAT_OPTIONS.map(o => (
                 <option key={o.value} value={o.value}>{o.label}</option>
@@ -184,8 +175,7 @@ export default function ManualEntryModal({ userId, onClose, onSaved }: Props) {
               value={author}
               onChange={e => setAuthor(e.target.value)}
               placeholder="e.g. Ursula K. Le Guin"
-              className="rounded px-3 py-2 outline-none text-sm"
-              style={INPUT_STYLE}
+              className="vault-input rounded px-3 py-2 text-sm"
             />
           </div>
         )}
@@ -199,8 +189,7 @@ export default function ManualEntryModal({ userId, onClose, onSaved }: Props) {
             value={year}
             onChange={e => setYear(e.target.value)}
             placeholder="e.g. 2023"
-            className="rounded px-3 py-2 outline-none text-sm"
-            style={INPUT_STYLE}
+            className="vault-input rounded px-3 py-2 text-sm"
           />
         </div>
 
@@ -213,8 +202,7 @@ export default function ManualEntryModal({ userId, onClose, onSaved }: Props) {
             value={posterUrl}
             onChange={e => setPosterUrl(e.target.value)}
             placeholder="https://…"
-            className="rounded px-3 py-2 outline-none text-sm"
-            style={INPUT_STYLE}
+            className="vault-input rounded px-3 py-2 text-sm"
           />
         </div>
 
@@ -230,8 +218,7 @@ export default function ManualEntryModal({ userId, onClose, onSaved }: Props) {
             value={genresInput}
             onChange={e => setGenresInput(e.target.value)}
             placeholder="e.g. Drama, Romance"
-            className="rounded px-3 py-2 outline-none text-sm"
-            style={INPUT_STYLE}
+            className="vault-input rounded px-3 py-2 text-sm"
           />
         </div>
 

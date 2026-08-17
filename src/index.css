@@ -31,7 +31,6 @@
      LandingPage.tsx) — the Figma artwork this replaces filled its letters
      with a 3-stop gradient, not a flat colour, and needs a pale end. */
   --color-accent-pale: #E4BCC3;
-  --color-success: #4CAF82;
   --color-danger: #C0392B;
   --color-border: #1E1E1E;
 }
@@ -335,7 +334,29 @@ button.vault-control.is-danger:hover:not(:disabled) {
   font-weight: 600;
 }
 
-/* Custom dropdown (Status / Genre / Sort filters) — deliberately neutral,
+/* Inputs inside the vault modals (EntryEditModal, ManualEntryModal).
+   These carried their surface/border in an inline style prop and a bare
+   Tailwind `outline-none`, which killed the browser's focus ring and put
+   nothing in its place — there was no visible focus indicator at all.
+   Border and background have to live here rather than in a style prop
+   because inline styles beat :focus.
+
+   Same treatment as the sign-in modal's .lp-auth-input; geometry (radius,
+   padding, text size) is deliberately left to the existing Tailwind classes
+   so this adds a focus state without redesigning the forms. */
+.vault-input {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  outline: none;
+  transition: border-color 0.18s ease, background-color 0.18s ease;
+}
+.vault-input:focus {
+  border-color: var(--color-accent);
+  background: #151515;
+}
+
+/* Custom dropdown (Status / Genre filters) — deliberately neutral,
    no gold, so the filter bar stays quiet next to the content */
 .dropdown-trigger {
   display: inline-flex;
