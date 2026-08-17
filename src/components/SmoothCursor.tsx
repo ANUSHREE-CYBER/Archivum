@@ -35,7 +35,10 @@ const DefaultCursorSVG: FC = () => (
     <g filter="url(#smoothcursor_shadow)">
       <path
         d="M42.6817 41.1495L27.5103 6.79925C26.7269 5.02557 24.2082 5.02558 23.3927 6.79925L7.59814 41.1495C6.75833 42.9759 8.52712 44.8902 10.4125 44.1954L24.3757 39.0496C24.8829 38.8627 25.4385 38.8627 25.9422 39.0496L39.8121 44.1954C41.6849 44.8902 43.4884 42.9759 42.6817 41.1495Z"
-        fill="#D4AF6A"
+        /* literal rather than var(--color-accent): if the variable ever failed
+           to resolve here, fill falls back to black and the cursor vanishes
+           against the vault's #080808 background */
+        fill="#B76E79"
       />
     </g>
     <defs>
@@ -71,10 +74,17 @@ const DefaultCursorSVG: FC = () => (
 
 export function SmoothCursor({
   cursor = <DefaultCursorSVG />,
+  // Position spring. The old 400/45/1 was overdamped enough to visibly trail
+  // the pointer. Three changes, in order of how much each one matters:
+  // mass 1 → 0.55 (the spring accelerates roughly twice as readily),
+  // stiffness 400 → 750 (stronger pull toward the pointer), and damping 45 →
+  // 32 to keep it just under critical damping for the new mass — critical for
+  // these values is ~2*sqrt(750*0.55) ≈ 40, so 32 settles fast with only a
+  // trace of follow-through and no visible oscillation or overshoot.
   springConfig = {
-    damping: 45,
-    stiffness: 400,
-    mass: 1,
+    damping: 32,
+    stiffness: 750,
+    mass: 0.55,
     restDelta: 0.001,
   },
 }: SmoothCursorProps) {
@@ -88,15 +98,18 @@ export function SmoothCursor({
 
   const cursorX = useSpring(0, springConfig)
   const cursorY = useSpring(0, springConfig)
+  // Rotation stays deliberately lazier than position — the tilt is the part
+  // that reads as "premium", and snapping it as hard as the position spring
+  // makes the arrow twitch on every small direction change.
   const rotation = useSpring(0, {
     ...springConfig,
-    damping: 60,
-    stiffness: 300,
+    damping: 50,
+    stiffness: 420,
   })
   const scale = useSpring(1, {
     ...springConfig,
-    stiffness: 500,
-    damping: 35,
+    stiffness: 650,
+    damping: 30,
   })
 
   useEffect(() => {

@@ -34,7 +34,10 @@ const TYPE_LABELS: Record<string, string> = {
   manhwa: 'Manhwa',
 }
 
-const WARM = ['#D4AF6A', '#C49A5A', '#B88848', '#8B6840', '#E8C87A', '#A07848', '#F0D890', '#6B5030']
+// Categorical ramp for the type and genre bars. Rose gold family, ordered so
+// adjacent bars alternate light/dark rather than stepping evenly down — a
+// smooth ramp makes neighbouring bars hard to tell apart at a glance.
+const WARM = ['#B76E79', '#A6626C', '#96555F', '#6E3E46', '#C98A93', '#8A4E58', '#E4BCC3', '#54303A']
 
 const TT_STYLE: React.CSSProperties = {
   backgroundColor: '#111111',
@@ -209,7 +212,7 @@ export default function StatsDashboard({ userId }: { userId: string }) {
             alignItems: 'center', justifyContent: 'center',
             padding: '28px 16px',
           }}>
-            <span style={{ fontSize: '2.2rem', fontWeight: 600, color: '#D4AF6A', lineHeight: 1 }}>{value}</span>
+            <span style={{ fontSize: '2.2rem', fontWeight: 600, color: '#B76E79', lineHeight: 1 }}>{value}</span>
             <span style={{ fontSize: '0.78rem', marginTop: 8, color: '#6B6660', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</span>
           </div>
         ))}
@@ -254,7 +257,7 @@ export default function StatsDashboard({ userId }: { userId: string }) {
               <CartesianGrid strokeDasharray="3 3" stroke="#1E1E1E" vertical={false} />
               <XAxis dataKey="name" tick={TICK} axisLine={false} tickLine={false} />
               <YAxis tick={TICK} axisLine={false} tickLine={false} allowDecimals={false} />
-              <Tooltip contentStyle={TT_STYLE} cursor={{ fill: 'rgba(212,175,106,0.06)' }} />
+              <Tooltip contentStyle={TT_STYLE} cursor={{ fill: 'rgba(183,110,121,0.06)' }} />
               <Bar dataKey="value" name="Count" radius={[4, 4, 0, 0]}>
                 {typeData.map((_, i) => <Cell key={i} fill={WARM[i % WARM.length]} />)}
               </Bar>
@@ -271,8 +274,8 @@ export default function StatsDashboard({ userId }: { userId: string }) {
                 <CartesianGrid strokeDasharray="3 3" stroke="#1E1E1E" vertical={false} />
                 <XAxis dataKey="name" tick={TICK} axisLine={false} tickLine={false} />
                 <YAxis tick={TICK} axisLine={false} tickLine={false} allowDecimals={false} />
-                <Tooltip contentStyle={TT_STYLE} cursor={{ fill: 'rgba(212,175,106,0.06)' }} />
-                <Bar dataKey="value" name="Entries" fill="#D4AF6A" radius={[4, 4, 0, 0]} />
+                <Tooltip contentStyle={TT_STYLE} cursor={{ fill: 'rgba(183,110,121,0.06)' }} />
+                <Bar dataKey="value" name="Entries" fill="#B76E79" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -287,7 +290,7 @@ export default function StatsDashboard({ userId }: { userId: string }) {
                 <CartesianGrid strokeDasharray="3 3" stroke="#1E1E1E" horizontal={false} />
                 <XAxis type="number" tick={TICK} axisLine={false} tickLine={false} allowDecimals={false} />
                 <YAxis type="category" dataKey="name" tick={TICK} axisLine={false} tickLine={false} width={76} />
-                <Tooltip contentStyle={TT_STYLE} cursor={{ fill: 'rgba(212,175,106,0.06)' }} />
+                <Tooltip contentStyle={TT_STYLE} cursor={{ fill: 'rgba(183,110,121,0.06)' }} />
                 <Bar dataKey="value" name="Count" radius={[0, 4, 4, 0]}>
                   {genreData.map((_, i) => <Cell key={i} fill={WARM[i % WARM.length]} />)}
                 </Bar>

@@ -140,7 +140,7 @@ export default function EntryEditModal({ entry, onClose, onSaved, onDeleted }: P
       if (status !== entry.status) {
         if (status === 'completed') {
           toast.success(`Marked ${entry.title} as Completed`, {
-            icon: <span style={{ color: 'var(--color-gold)', fontWeight: 700 }}>✓</span>,
+            icon: <span style={{ color: 'var(--color-accent)', fontWeight: 700 }}>✓</span>,
           })
         } else {
           toast.success(`Moved ${entry.title} to ${statusLabel(status, entry.type)}`)
@@ -256,7 +256,7 @@ export default function EntryEditModal({ entry, onClose, onSaved, onDeleted }: P
                 onClick={() => setRating(rating === n ? null : n)}
                 className="w-8 h-8 rounded text-sm font-medium cursor-pointer"
                 style={{
-                  background: rating === n ? 'var(--color-gold)' : 'var(--color-surface)',
+                  background: rating === n ? 'var(--color-accent)' : 'var(--color-surface)',
                   color: rating === n ? 'var(--color-background)' : 'var(--color-text)',
                   border: '1px solid var(--color-border)',
                 }}
@@ -309,7 +309,7 @@ export default function EntryEditModal({ entry, onClose, onSaved, onDeleted }: P
             disabled={saving}
             className="px-4 py-1.5 rounded text-sm font-semibold cursor-pointer hover:opacity-90 disabled:opacity-50"
             style={{
-              background: 'var(--color-gold)',
+              background: 'var(--color-accent)',
               color: 'var(--color-background)',
             }}
           >
