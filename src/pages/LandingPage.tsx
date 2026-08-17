@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { motion } from 'framer-motion'
 import { supabase } from '../lib/supabase'
 import useSpotlightEffect from '../lib/useSpotlightEffect'
+import { STATUS_COLORS, STATUS_TEXT_COLORS } from '../lib/statusColors'
 
 // Local poster imports
 import imgKillBill       from '../assets/Posters/Kill-bill.jpg'
@@ -86,21 +87,22 @@ const COLLECTION_TYPES: { name: string; tag: string }[] = [
 
 // ── "Plate I" vault peek ─────────────────────────────────────────────────
 // Static mockup only — no Supabase, no auth, nothing here reaches the real
-// vault. The status palette is Pass 2's rose-gold set, written out ahead of
-// the vault's own migration so the peek matches what the vault will become.
-// When Pass 2 lands, statusColors.ts should end up with these same values.
-const PEEK_STATUS = {
-  completed:   { label: 'Completed',     bg: '#C97684', fg: '#080808' },
-  in_progress: { label: 'In Progress',   bg: '#9B2F5C', fg: '#F2EFE9' },
-  plan:        { label: 'Plan to Watch', bg: '#A99BAE', fg: '#080808' },
-  on_hold:     { label: 'On Hold',       bg: '#5B3E8C', fg: '#F2EFE9' },
-  dropped:     { label: 'Dropped',       bg: '#6B6660', fg: '#F2EFE9' },
-} as const
+// vault. Colors come from statusColors.ts so the peek can't drift from the
+// real badges; only the labels are local, since the vault derives its own from
+// the entry's type (a book is "Plan to Read", not "Plan to Watch") and the
+// mockup has no entries to derive from.
+const PEEK_LABELS: Record<string, string> = {
+  completed: 'Completed',
+  in_progress: 'In Progress',
+  plan_to_watch: 'Plan to Watch',
+  on_hold: 'On Hold',
+  dropped: 'Dropped',
+}
 
-const PEEK_CARDS: { url: string; title: string; status: keyof typeof PEEK_STATUS }[] = [
+const PEEK_CARDS: { url: string; title: string; status: keyof typeof PEEK_LABELS }[] = [
   { url: imgHannibal,         title: 'Hannibal',           status: 'completed' },
   { url: imgSoloLeveling,     title: 'Solo Leveling',      status: 'in_progress' },
-  { url: imgGhostInTheShell,  title: 'Ghost in the Shell', status: 'plan' },
+  { url: imgGhostInTheShell,  title: 'Ghost in the Shell', status: 'plan_to_watch' },
   { url: imgJudgeFromHell,    title: 'Judge from Hell',    status: 'on_hold' },
   { url: imgSalt,             title: 'Salt',               status: 'dropped' },
   { url: imgSnapped,          title: 'Snapped',            status: 'completed' },
@@ -137,16 +139,33 @@ const PLATE_EDGE_POSTERS: EdgePoster[] = [
   { url: imgTheRookie,    width: 145, bottom: '2%', right: '-3%', rotate:  7 },
 ]
 
-const INPUT_STYLE: React.CSSProperties = {
-  background: '#080808',
-  border: '1px solid #2a2a2a',
-  color: '#F2EFE9',
-  borderRadius: 8,
-  padding: '10px 14px',
-  fontSize: 14,
-  outline: 'none',
-  width: '100%',
-  boxSizing: 'border-box',
+// Height cleared for the fixed navbar when scrolling a section to the top.
+// Matches .lp-section's scroll-margin-top.
+const NAV_OFFSET = 72
+
+// Password visibility glyph. Same hand-written idiom as the rest of the app's
+// icons (Dropdown's chevron, the vault header's control icons) — there's no
+// icon library installed and three shapes don't justify adding one. The almond
+// and pupil stay put between states so the toggle reads as one object gaining
+// a slash, not two unrelated pictures swapping.
+function EyeIcon({ off }: { off: boolean }) {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M1.3 8S4 3.6 8 3.6 14.7 8 14.7 8 12 12.4 8 12.4 1.3 8 1.3 8Z" />
+      <circle cx="8" cy="8" r="1.9" />
+      {off && <path d="M2.7 2.7 13.3 13.3" />}
+    </svg>
+  )
 }
 
 function EdgeBleed({ posters }: { posters: EdgePoster[] }) {
@@ -178,6 +197,7 @@ export default function LandingPage() {
   const [showLogin, setShowLogin] = useState(false)
   const [email, setEmail]         = useState('')
   const [password, setPassword]   = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [loginError, setLoginError]     = useState('')
   const [loginLoading, setLoginLoading] = useState(false)
   const spotlightCanvasRef = useSpotlightEffect()
@@ -188,7 +208,15 @@ export default function LandingPage() {
     // Honour the OS "reduce motion" setting: a long smooth scroll is exactly
     // the kind of large-area movement that setting exists to suppress.
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    target.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' })
+    // Deliberately window.scrollTo rather than target.scrollIntoView().
+    // scrollIntoView walks up the ancestor chain and scrolls whichever scroll
+    // container it meets first — so any wrapper that acquires an `auto`
+    // overflow (see the root div's overflow-x note) silently absorbs the call
+    // and nothing moves. Addressing the window directly can't be intercepted
+    // that way. NAV_OFFSET replaces the scroll-margin-top scrollIntoView would
+    // have honoured; that rule stays for real #collection anchor links.
+    const top = target.getBoundingClientRect().top + window.scrollY - NAV_OFFSET
+    window.scrollTo({ top, behavior: reduced ? 'auto' : 'smooth' })
   }
 
   async function handleSignIn(e: FormEvent) {
@@ -307,6 +335,152 @@ export default function LandingPage() {
            whole label visually left inside a centred pill; cancel it */
         .lp-cta-arrow {
           margin-right: -0.2em;
+        }
+        /* The hero CTA's exact shell, unpinned from its fixed pill width so it
+           can fill a container. Must follow .lp-cta to win — same specificity. */
+        .lp-cta-block {
+          min-width: 0;
+          width: 100%;
+          height: 38px;
+        }
+        .lp-cta:disabled {
+          opacity: 0.55;
+        }
+
+        /* ── Sign-in modal ─────────────────────────────────────────────────
+           Scrim is a flat tint with NO backdrop-filter of its own, matching the
+           vault modals. That's deliberate: an element with backdrop-filter
+           becomes a backdrop root for its descendants, so blurring the scrim
+           would leave the card's own blur with nothing behind it but the
+           scrim's flat colour — the frost would silently do nothing.
+           0.4 is the same value the vault modals settled on. */
+        .lp-auth-scrim {
+          position: fixed;
+          inset: 0;
+          z-index: 300;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 24px;
+          background: rgba(8, 8, 8, 0.4);
+        }
+
+        /* Same frosted recipe as EntryEditModal / ManualEntryModal */
+        .lp-auth-card {
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+          width: 340px;
+          max-width: 100%;
+          padding: 32px;
+          border-radius: 14px;
+          background: rgba(17, 17, 17, 0.85);
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.85);
+        }
+
+        .lp-auth-title {
+          margin: 0;
+          font-size: 21px;
+          font-weight: 400;
+          letter-spacing: 0.03em;
+          /* accent-light rather than accent: the heading sits on the card's own
+             lightened glass, and the deeper accent is spoken for by the button
+             border right below it */
+          color: var(--color-accent-light);
+          text-align: center;
+        }
+
+        /* The vault's ◆ ornament at modal scale — same motif, two hairlines
+           broken by the diamond. */
+        .lp-auth-rule {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          margin-top: -4px;
+        }
+        .lp-auth-rule::before,
+        .lp-auth-rule::after {
+          content: '';
+          flex: 1;
+          height: 1px;
+          background: rgba(255, 255, 255, 0.09);
+        }
+        .lp-auth-diamond {
+          color: var(--color-accent);
+          font-size: 7px;
+          line-height: 1;
+        }
+
+        /* Border/radius/surface match the vault modals' inputs; the focus state
+           is new — those rely on the browser default, which is a blue ring that
+           belongs to no palette here. Lives in a class, not a style prop, since
+           inline styles beat :focus. */
+        .lp-auth-input {
+          width: 100%;
+          box-sizing: border-box;
+          padding: 10px 14px;
+          border-radius: 8px;
+          background: var(--color-surface);
+          border: 1px solid var(--color-border);
+          color: var(--color-text);
+          font-size: 14px;
+          outline: none;
+          transition: border-color 0.18s ease, background-color 0.18s ease;
+        }
+        .lp-auth-input::placeholder {
+          color: #6B6660;
+        }
+        .lp-auth-input:focus {
+          border-color: var(--color-accent);
+          background: #151515;
+        }
+
+        /* Password field: the toggle is absolutely positioned inside the
+           input's box, so the wrapper (not the input) owns the positioning
+           context. The input keeps its own border and focus state untouched —
+           the button sits on top of it rather than the two being merged into
+           a composite control, which is what keeps the focus ring correct. */
+        .lp-auth-field {
+          position: relative;
+          display: flex;
+        }
+        /* clears the 32px button plus its inset, so typed text and the caret
+           never run under the glyph */
+        .lp-auth-input-password {
+          padding-right: 42px;
+        }
+        .lp-auth-eye {
+          position: absolute;
+          top: 50%;
+          right: 4px;
+          transform: translateY(-50%);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          /* 32px box around a 16px glyph — a comfortably separate hit target
+             that still sits inside the input's 42px right gutter */
+          width: 32px;
+          height: 32px;
+          padding: 0;
+          border: none;
+          background: none;
+          border-radius: 7px;
+          /* the placeholder's tone, so it reads as part of the input's own
+             quiet furniture rather than a control competing with the form */
+          color: #6B6660;
+          transition: color 0.18s ease, background-color 0.18s ease;
+        }
+        .lp-auth-eye:hover {
+          color: var(--color-text);
+          background: rgba(255, 255, 255, 0.05);
+        }
+        .lp-auth-eye:focus-visible {
+          color: var(--color-accent-light);
+          outline: 1px solid var(--color-accent);
+          outline-offset: -2px;
         }
 
         /* ── Scroll invitation under the CTA ──────────────────────────── */
@@ -613,8 +787,14 @@ export default function LandingPage() {
 
       {/* The page scrolls now, so the root can no longer be a 100vh box with
           overflow:hidden — that clipping moved onto the hero section, which
-          still needs it to keep the poster collage inside one viewport. */}
-      <div style={{ position: 'relative', width: '100%', background: '#080808', overflowX: 'hidden' }}>
+          still needs it to keep the poster collage inside one viewport.
+
+          overflow-x is `clip`, NOT `hidden`. They look identical here but
+          differ in one decisive way: a `hidden` on one axis forces the other
+          axis's `visible` to compute to `auto`, which quietly turned this div
+          into a scroll container wrapping the whole page. `clip` has no such
+          side effect and creates no scroll container. */}
+      <div style={{ position: 'relative', width: '100%', background: '#080808', overflowX: 'clip' }}>
 
         {/* ── Navbar ── */}
         <nav style={{
@@ -773,29 +953,29 @@ export default function LandingPage() {
               </div>
 
               <div className="lp-plate-grid">
-                {PEEK_CARDS.map(card => {
-                  const status = PEEK_STATUS[card.status]
-                  return (
-                    <div key={card.title} className="lp-plate-card">
-                      <div className="lp-plate-poster-frame">
-                        <img
-                          src={card.url}
-                          alt=""
-                          className="lp-plate-poster"
-                          loading="lazy"
-                          decoding="async"
-                        />
-                      </div>
-                      <span
-                        className="lp-plate-badge"
-                        style={{ background: status.bg, color: status.fg }}
-                      >
-                        {status.label}
-                      </span>
-                      <span className="lp-plate-name">{card.title}</span>
+                {PEEK_CARDS.map(card => (
+                  <div key={card.title} className="lp-plate-card">
+                    <div className="lp-plate-poster-frame">
+                      <img
+                        src={card.url}
+                        alt=""
+                        className="lp-plate-poster"
+                        loading="lazy"
+                        decoding="async"
+                      />
                     </div>
-                  )
-                })}
+                    <span
+                      className="lp-plate-badge"
+                      style={{
+                        background: STATUS_COLORS[card.status],
+                        color: STATUS_TEXT_COLORS[card.status],
+                      }}
+                    >
+                      {PEEK_LABELS[card.status]}
+                    </span>
+                    <span className="lp-plate-name">{card.title}</span>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -808,35 +988,14 @@ export default function LandingPage() {
 
         {/* ── Sign-in modal ── */}
         {showLogin && (
-          <div
-            style={{
-              position: 'fixed',
-              inset: 0,
-              zIndex: 300,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              background: 'rgba(8,8,8,0.78)',
-              backdropFilter: 'blur(6px)',
-            }}
-            onClick={() => setShowLogin(false)}
-          >
-            <div
-              style={{
-                background: '#111111',
-                border: '1px solid #1E1E1E',
-                borderRadius: 14,
-                padding: '36px 32px',
-                width: 340,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 20,
-              }}
-              onClick={e => e.stopPropagation()}
-            >
-              <h2 style={{ margin: 0, fontSize: 17, fontWeight: 600, color: 'var(--color-accent)', letterSpacing: '0.06em' }}>
-                Sign In
-              </h2>
+          <div className="lp-auth-scrim" onClick={() => setShowLogin(false)}>
+            <div className="lp-auth-card" onClick={e => e.stopPropagation()}>
+              <h2 className="lp-auth-title lp-serif">Sign In</h2>
+
+              <div className="lp-auth-rule" aria-hidden="true">
+                <span className="lp-auth-diamond">◆</span>
+              </div>
+
               <form onSubmit={handleSignIn} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <input
                   type="email"
@@ -844,33 +1003,37 @@ export default function LandingPage() {
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   required
-                  style={INPUT_STYLE}
+                  className="lp-auth-input"
                 />
-                <input
-                  type="password"
-                  placeholder="Password"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  required
-                  style={INPUT_STYLE}
-                />
+                <div className="lp-auth-field">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="Password"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    required
+                    className="lp-auth-input lp-auth-input-password"
+                  />
+                  {/* type="button" is load-bearing: a bare <button> inside a
+                      <form> defaults to type="submit", so toggling visibility
+                      would attempt a sign-in. */}
+                  <button
+                    type="button"
+                    className="lp-auth-eye"
+                    onClick={() => setShowPassword(v => !v)}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    <EyeIcon off={!showPassword} />
+                  </button>
+                </div>
                 {loginError && (
-                  <p style={{ margin: 0, fontSize: 13, color: '#C0392B' }}>{loginError}</p>
+                  <p style={{ margin: 0, fontSize: 13, color: 'var(--color-danger)' }}>{loginError}</p>
                 )}
                 <button
                   type="submit"
                   disabled={loginLoading}
-                  style={{
-                    background: 'var(--color-accent)',
-                    color: '#080808',
-                    border: 'none',
-                    borderRadius: 8,
-                    padding: '11px',
-                    fontSize: 14,
-                    fontWeight: 600,
-                    marginTop: 4,
-                    opacity: loginLoading ? 0.6 : 1,
-                  }}
+                  className="lp-cta lp-cta-block lp-serif"
+                  style={{ marginTop: 6 }}
                 >
                   {loginLoading ? 'Signing in…' : 'Sign In'}
                 </button>
