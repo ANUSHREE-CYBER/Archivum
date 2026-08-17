@@ -256,7 +256,7 @@ export default function ManualEntryModal({ userId, onClose, onSaved }: Props) {
             disabled={saving}
             className="px-4 py-1.5 rounded text-sm font-semibold cursor-pointer hover:opacity-90 disabled:opacity-50"
             style={{
-              background: 'var(--color-gold)',
+              background: 'var(--color-accent)',
               color: 'var(--color-background)',
             }}
           >
