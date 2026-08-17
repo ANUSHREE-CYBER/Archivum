@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 
 export interface DropdownOption {
   value: string
@@ -10,6 +11,9 @@ interface Props {
   value: string
   onChange: (value: string) => void
   ariaLabel: string
+  // Optional glyph rendered before the label. Purely decorative — the trigger
+  // is already named by ariaLabel — so callers pass an aria-hidden svg.
+  icon?: ReactNode
 }
 
 // Custom replacement for native <select> — the OS renders native option lists
@@ -17,7 +21,7 @@ interface Props {
 // the trigger button the whole time (a "combobox-lite" pattern): the options
 // are non-focusable divs, so all keyboard handling lives on the root and the
 // menu can't steal focus.
-export default function Dropdown({ options, value, onChange, ariaLabel }: Props) {
+export default function Dropdown({ options, value, onChange, ariaLabel, icon }: Props) {
   const [open, setOpen] = useState(false)
   const [highlighted, setHighlighted] = useState(0)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -105,6 +109,7 @@ export default function Dropdown({ options, value, onChange, ariaLabel }: Props)
         onClick={() => (open ? setOpen(false) : openMenu())}
         className={`dropdown-trigger text-xs cursor-pointer ${open ? 'is-open' : ''}`}
       >
+        {icon}
         {selected?.label ?? value}
         <svg
           width="10"
