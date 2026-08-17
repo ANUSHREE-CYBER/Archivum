@@ -145,10 +145,9 @@ A full codebase review was done by Claude Fable 5, covering bugs, TypeScript iss
 
 - Deploy to Vercel
 - Add `totalEpisodes`/`totalChapters` to the edit modal so progress bars work beyond books
-- `--color-success` (`#4CAF82`) is now referenced by nothing — it was only ever the in-progress green, via a literal in `statusColors.ts`, never through the variable. Safe to delete.
-- `public/icons.svg` is a leftover starter-template sprite (Bluesky/social icons), referenced nowhere. Safe to delete.
-- `EntryEditModal` and `ManualEntryModal` inputs set `outline: none` and add no focus style, so they currently have no visible focus indicator. The sign-in modal's `.lp-auth-input:focus` (accent border) is the pattern to copy.
-- `matchesTypeTab()`'s `if (tab === 'all')` branch is unreachable now that sections only pass concrete types.
+All four loose ends from the previous session are now cleared: `--color-success` and `public/icons.svg` deleted, vault modal inputs given a focus state (`.vault-input` in `index.css`), and `matchesTypeTab()` narrowed to `Tab`.
+
+Note `EntryEditModal` still uses a native `<select>` for Status — the only one left, despite the note above that `Dropdown` replaced all native selects. It now shares `.vault-input`, so it is at least styled and focusable consistently.
 
 ## Code style
 

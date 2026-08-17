@@ -24,8 +24,7 @@ const STATUS_FILTER_OPTIONS = STATUS_OPTIONS.map(o => ({
 // Kdrama is explicitly excluded from the TV Show crossover so it keeps its own
 // section. Unchanged from the tab bar this replaced — the crossover rule is the
 // same one, which is why an anime film legitimately renders in two sections.
-function matchesTypeTab(entry: EditableEntry, tab: 'all' | Tab): boolean {
-  if (tab === 'all') return true
+function matchesTypeTab(entry: EditableEntry, tab: Tab): boolean {
   if (tab === 'movie') return entry.type === 'movie' || entry.format === 'movie'
   if (tab === 'tv_show') {
     if (entry.type === 'kdrama') return false

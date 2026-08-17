@@ -59,12 +59,7 @@ function NumField({ label, value, onChange }: {
         min={0}
         value={value ?? ''}
         onChange={e => onChange(e.target.value === '' ? null : Number(e.target.value))}
-        className="rounded px-3 py-2 outline-none text-sm"
-        style={{
-          background: 'var(--color-surface)',
-          border: '1px solid var(--color-border)',
-          color: 'var(--color-text)',
-        }}
+        className="vault-input rounded px-3 py-2 text-sm"
       />
     </div>
   )
@@ -231,12 +226,7 @@ export default function EntryEditModal({ entry, onClose, onSaved, onDeleted }: P
           <select
             value={status}
             onChange={e => setStatus(e.target.value)}
-            className="rounded px-3 py-2 outline-none text-sm"
-            style={{
-              background: 'var(--color-surface)',
-              border: '1px solid var(--color-border)',
-              color: 'var(--color-text)',
-            }}
+            className="vault-input rounded px-3 py-2 text-sm"
           >
             {STATUS_OPTIONS.map(opt => (
               <option key={opt.value} value={opt.value}>{statusLabel(opt.value, entry.type)}</option>
