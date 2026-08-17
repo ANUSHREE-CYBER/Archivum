@@ -4,6 +4,7 @@ import type { RefObject } from 'react'
 interface SpotlightConfig {
   spotlightSize?: number
   spotlightIntensity?: number
+  glowIntensity?: number
   fadeSpeed?: number
   glowColor?: string
   pulseSpeed?: number
@@ -16,10 +17,17 @@ interface Position {
 
 function useSpotlightEffect(config: SpotlightConfig = {}): RefObject<HTMLCanvasElement | null> {
   const {
-    spotlightSize = 200,
-    spotlightIntensity = 0.8,
+    // The hole punched in the dark overlay. `spotlightIntensity` is an alpha
+    // fed to a destination-out fill, so 1 = the overlay is fully erased at the
+    // centre and the poster underneath reads at its true brightness.
+    spotlightSize = 260,
+    spotlightIntensity = 1,
+    // Alpha of the separate rose-gold wash painted on top of the hole — this
+    // is the only pass where `glowColor` actually shows, since destination-out
+    // uses a fill's alpha and throws its RGB away.
+    glowIntensity = 0.28,
     fadeSpeed = 0.1,
-    glowColor = '212, 175, 106',
+    glowColor = '183, 110, 121',
     pulseSpeed = 2000,
   } = config
 
@@ -77,8 +85,14 @@ function useSpotlightEffect(config: SpotlightConfig = {}): RefObject<HTMLCanvasE
         currentSpotlightSize
       )
 
+      // Four stops rather than two: the extra pair holds the core near full
+      // strength out to ~a third of the radius (so a poster under the cursor is
+      // fully lit, not just its centre pixel) and then eases the tail out. A
+      // straight 1 → 0 ramp over this bigger radius reads as a hard-edged disc.
       gradient.addColorStop(0, `rgba(${glowColor}, ${spotlightIntensity})`)
-      gradient.addColorStop(0.5, `rgba(${glowColor}, ${spotlightIntensity * 0.5})`)
+      gradient.addColorStop(0.35, `rgba(${glowColor}, ${spotlightIntensity * 0.92})`)
+      gradient.addColorStop(0.65, `rgba(${glowColor}, ${spotlightIntensity * 0.55})`)
+      gradient.addColorStop(0.85, `rgba(${glowColor}, ${spotlightIntensity * 0.22})`)
       gradient.addColorStop(1, 'rgba(0, 0, 0, 0)')
 
       // Apply spotlight effect
@@ -96,13 +110,14 @@ function useSpotlightEffect(config: SpotlightConfig = {}): RefObject<HTMLCanvasE
         0,
         spotlightPos.current.x,
         spotlightPos.current.y,
-        currentSpotlightSize * 1.2
+        currentSpotlightSize * 1.35
       )
-      glowGradient.addColorStop(0, `rgba(${glowColor}, 0.2)`)
+      glowGradient.addColorStop(0, `rgba(${glowColor}, ${glowIntensity})`)
+      glowGradient.addColorStop(0.45, `rgba(${glowColor}, ${glowIntensity * 0.55})`)
       glowGradient.addColorStop(1, 'rgba(0, 0, 0, 0)')
       ctx.fillStyle = glowGradient
       ctx.beginPath()
-      ctx.arc(spotlightPos.current.x, spotlightPos.current.y, currentSpotlightSize * 1.2, 0, Math.PI * 2)
+      ctx.arc(spotlightPos.current.x, spotlightPos.current.y, currentSpotlightSize * 1.35, 0, Math.PI * 2)
       ctx.fill()
 
       animationFrame.current = requestAnimationFrame(render)
@@ -122,7 +137,7 @@ function useSpotlightEffect(config: SpotlightConfig = {}): RefObject<HTMLCanvasE
         cancelAnimationFrame(animationFrame.current)
       }
     }
-  }, [spotlightSize, spotlightIntensity, fadeSpeed, glowColor, pulseSpeed])
+  }, [spotlightSize, spotlightIntensity, glowIntensity, fadeSpeed, glowColor, pulseSpeed])
 
   return canvasRef
 }

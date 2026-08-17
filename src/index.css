@@ -20,6 +20,16 @@
      (currently ~6.8:1; the old #6B6660 was ~3.5:1 and failed) */
   --color-text-muted: #9A9590;
   --color-gold: #D4AF6A;
+  /* Rose gold — Pass 1 of the rebrand, landing page only. The vault still
+     runs on --color-gold above and migrates in Pass 2, so both live here
+     side by side for now. */
+  --color-accent: #B76E79;
+  --color-accent-light: #C98A93;
+  --color-accent-dark: #96555F;
+  /* Highlight stop for the metallic text sheen (see .lp-metal in
+     LandingPage.tsx) — the Figma artwork this replaces filled its letters
+     with a 3-stop gradient, not a flat colour, and needs a pale end. */
+  --color-accent-pale: #E4BCC3;
   --color-success: #4CAF82;
   --color-danger: #C0392B;
   --color-border: #1E1E1E;
