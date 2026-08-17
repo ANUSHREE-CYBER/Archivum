@@ -105,7 +105,7 @@ A full codebase review was done by Claude Fable 5, covering bugs, TypeScript iss
 
 ## Known issues
 
-- 6 pre-existing lint errors: `EntryEditModal.tsx` and `MediaSearch.tsx` (react-refresh mixed-export warnings from colocated constants), `MediaSearch.tsx` and `EntryList.tsx` (setState directly inside an effect), `SmoothCursor.tsx` (impure `Date.now()` during render). None are from recent work; `npm run build` is unaffected.
+- 8 pre-existing lint errors (this was documented as 6 — `StatsDashboard.tsx` and the `no-useless-assignment` were missed): `EntryEditModal.tsx` (×2) and `MediaSearch.tsx` (react-refresh mixed-export warnings from colocated constants), `MediaSearch.tsx`, `EntryList.tsx` and `StatsDashboard.tsx` (setState directly inside an effect), `MediaSearch.tsx` (`no-useless-assignment` on the AniList fallback), `SmoothCursor.tsx` (impure `Date.now()` during render). None are from recent work; `npm run build` is unaffected.
 - Progress bars only appear on books currently — the edit modal saves `currentPage`/`totalPages` but doesn't save `totalEpisodes`/`totalChapters` for shows/manga, and the bar requires a total.
 - Poster fallback (and vault header) use the Georgia serif stack — no custom font loaded yet.
 - Tailwind note: `min-[900px]:` is the correct v4 syntax for arbitrary *viewport* breakpoints (compiles to `@media (width >= 900px)`); `@min-[900px]:` is the *container query* variant and silently never matches without an `@container` ancestor.
