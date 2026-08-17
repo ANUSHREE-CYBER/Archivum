@@ -19,10 +19,11 @@
   /* must stay ≥4.5:1 against --color-background for WCAG AA at small sizes
      (currently ~6.8:1; the old #6B6660 was ~3.5:1 and failed) */
   --color-text-muted: #9A9590;
-  --color-gold: #D4AF6A;
-  /* Rose gold — Pass 1 of the rebrand, landing page only. The vault still
-     runs on --color-gold above and migrates in Pass 2, so both live here
-     side by side for now. */
+  /* Rose gold — the app's one accent colour since Pass 2 of the rebrand
+     retired --color-gold (#D4AF6A). The only gold left in the repo is in
+     LoginPage.tsx, which is dead code and never rendered; its var(--color-gold)
+     references now resolve to nothing, which is harmless but is the reason not
+     to be surprised by them. */
   --color-accent: #B76E79;
   --color-accent-light: #C98A93;
   --color-accent-dark: #96555F;
@@ -62,6 +63,186 @@
   position: relative;
   z-index: 0;
   overflow: hidden;
+}
+
+/* ── Merged vault header ───────────────────────────────────────────────────
+   One row: identity ("The Vault" + counts) left, browsing controls (Status,
+   Genre, Select, +Add) right. Sticky against <main>, which is the scroll
+   container — not the window — so top:0 pins it just under the app header.
+   Nothing between this element and <main> sets overflow, which is what lets
+   sticky work at all.
+
+   Collapsed state is driven by the .is-collapsed class from App. Everything
+   that moves is a transition on this element or a descendant, so the collapse
+   is one 250ms change rather than a re-layout. */
+.vault-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 10px 24px;
+  background: transparent;
+  border-bottom: 1px solid transparent;
+  transition: padding 0.25s ease, background-color 0.25s ease, border-color 0.25s ease;
+}
+/* Only drawn while the Add drawer is open — that's the one moment the header
+   needs an edge, so it doesn't earn a permanent line across the aurora.
+   Declared before .is-collapsed so the collapsed (stronger) border still wins
+   when both apply. */
+.vault-header.has-drawer {
+  border-bottom-color: rgba(242, 239, 233, 0.06);
+}
+.vault-header.is-collapsed {
+  padding: 5px 24px;
+  /* opaque enough that cards passing underneath don't read through the bar */
+  background: rgba(8, 8, 8, 0.88);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-bottom-color: var(--color-border);
+}
+
+.vault-header-identity {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  min-width: 0;
+}
+.vault-header-title {
+  margin: 0;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 23px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  color: var(--color-text);
+  white-space: nowrap;
+  text-shadow: 0 1px 6px rgba(8, 8, 8, 0.9);
+  transition: font-size 0.25s ease;
+}
+.vault-header.is-collapsed .vault-header-title {
+  font-size: 15px;
+}
+/* The count line is the one thing allowed to disappear entirely — it's
+   information, not a control. max-width rather than display:none so it
+   collapses along the row instead of popping. */
+.vault-header-count {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  max-width: 460px;
+  opacity: 1;
+  text-shadow: 0 1px 6px rgba(8, 8, 8, 0.9);
+  transition: max-width 0.25s ease, opacity 0.18s ease;
+}
+.vault-header.is-collapsed .vault-header-count {
+  max-width: 0;
+  opacity: 0;
+}
+
+.vault-header-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+/* Controls shrink but never leave. These rules are unlayered, so they win over
+   the Tailwind padding/text-size utilities on the same buttons without needing
+   !important — the same reason the cursor overrides at the bottom of this file
+   work. Inline styles would still beat them, which is why the +Add button's
+   padding lives in .vault-add-btn instead of a style prop. */
+.vault-header .dropdown-trigger,
+.vault-header-controls button {
+  transition: padding 0.25s ease, font-size 0.25s ease, border-color 0.15s ease;
+}
+.vault-header.is-collapsed .dropdown-trigger,
+.vault-header.is-collapsed .vault-header-controls button {
+  padding: 4px 9px;
+  font-size: 11px;
+}
+
+/* Outlined controls (Curate, Cancel, the "N selected" chip) share
+   .dropdown-trigger's shell exactly — same surface, border, 8px radius and
+   hover — so the header reads as one control strip rather than four things
+   styled independently. Padding/font-size are transitioned here too so these
+   shrink with the rest of the row when the header collapses. */
+.vault-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 10px;
+  background: #111111;
+  border: 1px solid #1E1E1E;
+  border-radius: 8px;
+  color: #F2EFE9;
+  font-size: 12px;
+  white-space: nowrap;
+  transition: border-color 0.15s ease, background-color 0.15s ease,
+              padding 0.25s ease, font-size 0.25s ease;
+}
+button.vault-control:hover:not(:disabled) {
+  border-color: #3A3A3A;
+  background: #161616;
+}
+/* the non-interactive "N selected" readout — same shell, quieter text */
+.vault-control.is-readout {
+  color: var(--color-text-muted);
+}
+/* Filled destructive variant. brightness() rather than another red literal,
+   so it can't drift from --color-danger. */
+.vault-control.is-danger {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+  color: #F2EFE9;
+  font-weight: 600;
+  transition: filter 0.15s ease, padding 0.25s ease, font-size 0.25s ease;
+}
+button.vault-control.is-danger:hover:not(:disabled) {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+  filter: brightness(1.15);
+}
+
+/* The one filled accent control in the group — deliberately not outlined, it's
+   the primary action. Radius matches the rest; hover brightens to the same
+   accent-light the landing page CTA uses. */
+.vault-add-btn {
+  padding: 6px 18px;
+  border: 1px solid var(--color-accent);
+  border-radius: 8px;
+  background: var(--color-accent);
+  color: var(--color-background);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background-color 0.15s ease, border-color 0.15s ease,
+              padding 0.25s ease, font-size 0.25s ease;
+}
+.vault-add-btn:hover {
+  background: var(--color-accent-light);
+  border-color: var(--color-accent-light);
+}
+
+/* Quiet anchor glyphs before Status / Genre / Curate. currentColor + a slight
+   fade keeps them a step below their label while still brightening with it on
+   hover, instead of being a separately-managed colour. */
+.control-icon {
+  flex-shrink: 0;
+  opacity: 0.65;
+}
+
+/* The Add drawer. It sits directly under the header and both are dark panels,
+   so the separation is an edge rather than a tint: a hairline plus a short
+   inset shadow along the top, which reads as the drawer being recessed under
+   the header. The panel colour itself (MediaSearch's 0.85 glass) is untouched
+   — that recipe is shared with the modals. */
+.vault-drawer {
+  border-top: 1px solid rgba(242, 239, 233, 0.06);
+  box-shadow: inset 0 7px 10px -9px rgba(0, 0, 0, 0.9);
 }
 
 .card-entering,
@@ -112,16 +293,16 @@
   width: 32px;
   height: 24px;
   border-radius: 999px;
-  border: 1px solid rgba(212, 175, 106, 0.4);
+  border: 1px solid rgba(183, 110, 121, 0.4);
   background: rgba(8, 8, 8, 0.75);
-  color: #D4AF6A;
+  color: var(--color-accent);
   font-size: 13px;
   line-height: 1;
   transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 .quick-pill:hover {
-  background: #D4AF6A;
-  border-color: #D4AF6A;
+  background: var(--color-accent);
+  border-color: var(--color-accent);
   color: #080808;
 }
 
@@ -147,10 +328,10 @@
   transition: background-color 0.12s ease;
 }
 .quick-menu-item:hover {
-  background: rgba(212, 175, 106, 0.15);
+  background: rgba(183, 110, 121, 0.15);
 }
 .quick-menu-item.is-current {
-  color: #D4AF6A;
+  color: var(--color-accent);
   font-weight: 600;
 }
 
@@ -165,11 +346,12 @@
   border: 1px solid #1E1E1E;
   border-radius: 8px;
   color: #F2EFE9;
-  transition: border-color 0.15s ease;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 .dropdown-trigger:hover,
 .dropdown-trigger.is-open {
   border-color: #3A3A3A;
+  background: #161616;
 }
 .dropdown-chevron {
   color: #6B6660;

@@ -1,21 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { Dispatch, SetStateAction } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import type { Dispatch, ReactNode, SetStateAction } from 'react'
+import { motion, AnimatePresence, useInView } from 'framer-motion'
 import { toast } from 'sonner'
 import { supabase } from '../lib/supabase'
 import EntryEditModal, { STATUS_OPTIONS, statusLabel } from './EntryEditModal'
 import type { EditableEntry } from './EntryEditModal'
 import type { Tab } from './MediaSearch'
 import Dropdown from './Dropdown'
-import { STATUS_COLORS } from '../lib/statusColors'
+import { STATUS_COLORS, STATUS_TEXT_COLORS } from '../lib/statusColors'
 import { sharpPoster } from '../lib/utils'
-
-const SORT_OPTIONS = [
-  { value: 'newest',    label: 'Newest Added' },
-  { value: 'year_desc', label: 'Year (newest first)' },
-  { value: 'year_asc',  label: 'Year (oldest first)' },
-  { value: 'title_az',  label: 'Title (A–Z)' },
-]
 
 // plan_to_watch/in_progress show combined labels in the filter since it covers all types
 const STATUS_FILTER_OPTIONS = STATUS_OPTIONS.map(o => ({
@@ -26,9 +19,11 @@ const STATUS_FILTER_OPTIONS = STATUS_OPTIONS.map(o => ({
     o.label,
 }))
 
-// Tabs match on type, but movie/tv_show also pick up entries of other
+// Sections match on type, but movie/tv_show also pick up entries of other
 // types whose inferred format crosses over (e.g. an anime film under Movie).
-// Kdrama is explicitly excluded from the TV Show crossover so it stays in its own tab.
+// Kdrama is explicitly excluded from the TV Show crossover so it keeps its own
+// section. Unchanged from the tab bar this replaced — the crossover rule is the
+// same one, which is why an anime film legitimately renders in two sections.
 function matchesTypeTab(entry: EditableEntry, tab: 'all' | Tab): boolean {
   if (tab === 'all') return true
   if (tab === 'movie') return entry.type === 'movie' || entry.format === 'movie'
@@ -39,39 +34,69 @@ function matchesTypeTab(entry: EditableEntry, tab: 'all' | Tab): boolean {
   return entry.type === tab
 }
 
-// Short index-style labels (MOVIES, TV) rather than the search tabs' full ones
-const INDEX_TABS: { value: 'all' | Tab; label: string }[] = [
-  { value: 'all',     label: 'All' },
+// Fixed render order for the continuous page. Not alphabetical and not the old
+// tab order — this is the order the vault reads in, most-watched first.
+const VAULT_SECTIONS: { value: Tab; label: string }[] = [
+  { value: 'anime',   label: 'Anime' },
+  { value: 'kdrama',  label: 'Kdrama' },
   { value: 'movie',   label: 'Movies' },
   { value: 'tv_show', label: 'TV' },
-  { value: 'kdrama',  label: 'Kdrama' },
-  { value: 'anime',   label: 'Anime' },
   { value: 'book',    label: 'Books' },
   { value: 'manga',   label: 'Manga' },
   { value: 'manhwa',  label: 'Manhwa' },
 ]
 
-const SELECT_STYLE = {
-  background: 'var(--color-surface)',
-  border: '1px solid var(--color-border)',
-  color: 'var(--color-text)',
+// Control glyphs. No icon library is installed — the only existing icon in the
+// codebase is Dropdown's chevron, a hand-written 1.5px stroke SVG on
+// currentColor, so these follow that idiom exactly rather than pulling in a
+// dependency for three shapes. currentColor + .control-icon's opacity is what
+// makes them track their label's colour through hover.
+function ControlIcon({ children }: { children: ReactNode }) {
+  return (
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 12 12"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className="control-icon"
+    >
+      {children}
+    </svg>
+  )
 }
 
-// Text-contrast pairing for each shared status color (badge text color, not
-// part of the shared identity color itself — StatsDashboard doesn't need it).
-const STATUS_TEXT_COLORS: Record<string, string> = {
-  completed:     '#080808',
-  in_progress:   '#080808',
-  plan_to_watch: '#F2EFE9',
-  on_hold:       '#080808',
-  dropped:       '#F2EFE9',
-}
+// Funnel — the one shape that reads as "filter" without a label
+const StatusIcon = () => <ControlIcon><path d="M1.6 2.2h8.8L7.1 6.3v3.9L4.9 9V6.3L1.6 2.2Z" /></ControlIcon>
+// Luggage-style tag, punch hole included, for the genre filter
+const GenreIcon = () => (
+  <ControlIcon>
+    <path d="M1.6 1.6h4.6l4.2 4.2-4.6 4.6-4.2-4.2V1.6Z" />
+    <circle cx="4" cy="4" r="0.85" />
+  </ControlIcon>
+)
+// Ticked box — echoes the checkbox that appears on cards once Curate is on
+const CurateIcon = () => (
+  <ControlIcon>
+    <rect x="1.6" y="1.6" width="8.8" height="8.8" rx="2.2" />
+    <path d="M4.1 6.1 5.4 7.5 8 4.6" />
+  </ControlIcon>
+)
 
-// Muted/desaturated per-type wayfinding colors — deliberately distinct from the status palette above
+// Muted/desaturated per-type wayfinding colors — deliberately distinct from the
+// status palette above. kdrama used to be #C48793, which sat at hue 348° —
+// within 3° of both --color-accent (351°) and the new completed badge (350°),
+// so a 9px kdrama dot would have read as a rose gold status cue. Moved to 319°,
+// which is the midpoint between the rose it has to escape and the manga dot's
+// 288° purple, so it collides with neither.
 const TYPE_DOT_COLORS: Record<string, string> = {
   movie:   '#6E8FA3',
   tv_show: '#5FA3A0',
-  kdrama:  '#C48793',
+  kdrama:  '#C173A8',
   anime:   '#C48F5A',
   book:    '#8A9A6B',
   manga:   '#9B7BA3',
@@ -88,20 +113,11 @@ const TYPE_LABELS: Record<string, string> = {
   manhwa:  'Manhwa',
 }
 
-// Shown when a tab has no entries at all (before status/genre filtering) —
-// filtered-to-empty keeps the generic "No entries match these filters." message.
-const EMPTY_MESSAGES: Record<'all' | Tab, string> = {
-  all:     'Your vault is empty. Add your first entry.',
-  movie:   'No movies in your vault yet.',
-  tv_show: 'No TV shows in your vault yet.',
-  kdrama:  'No kdramas in your vault yet.',
-  anime:   'No anime in your vault yet.',
-  book:    'Your bookshelf is empty.',
-  manga:   'No manga in your vault yet.',
-  manhwa:  'No manhwa in your vault yet.',
-}
-
-function EmptyState({ tab }: { tab: 'all' | Tab }) {
+// Only the whole-vault case survives the move to sections. The seven per-type
+// messages ("No anime in your vault yet.") went with the tab bar: a section
+// with nothing in it is now simply not rendered, so there is no per-type empty
+// state left to word. See the section-visibility note in the render below.
+function EmptyState() {
   return (
     <div className="flex items-center justify-center px-6" style={{ minHeight: '45vh' }}>
       {/* soft dark scrim so the muted text stays readable over bright aurora bands */}
@@ -109,18 +125,11 @@ function EmptyState({ tab }: { tab: 'all' | Tab }) {
         className="flex items-center gap-2.5 rounded-lg px-5 py-3"
         style={{ background: 'rgba(8,8,8,0.5)' }}
       >
-        {tab !== 'all' && (
-          <span
-            aria-hidden="true"
-            className="rounded-full flex-shrink-0"
-            style={{ width: 9, height: 9, background: TYPE_DOT_COLORS[tab] }}
-          />
-        )}
         <p
           className="text-sm text-center"
           style={{ color: 'var(--color-text-muted)', textShadow: '0 1px 8px rgba(8,8,8,0.8)' }}
         >
-          {EMPTY_MESSAGES[tab]}
+          Your vault is empty. Add your first entry.
         </p>
       </div>
     </div>
@@ -212,6 +221,12 @@ function progressPercent(entry: EditableEntry): number | null {
 // .card-entering to .card-visible one frame after its own mount, so persisting
 // cards (still mounted across a filter change) never replay the entrance —
 // only newly-mounted cards do. The per-card transition-delay is what cascades.
+//
+// Since the vault became one continuous page, that flip also waits on the
+// card's section being in view (EntryCard's `revealed` prop), so the cascade
+// belongs to whichever band you've just scrolled to instead of all seven
+// firing at once behind the fold. The index resets per section, so each one
+// cascades from its own first card.
 const CARD_STAGGER_STEP_MS = 40
 const CARD_STAGGER_CAP_MS = 500
 
@@ -222,10 +237,15 @@ const CARD_STAGGER_CAP_MS = 500
 const TILT_MAX_DEG = 7
 const FINE_POINTER = window.matchMedia('(hover: hover) and (pointer: fine)').matches
 
-function EntryCard({ entry, index, onClick, selectionMode, selected, onToggleSelect, onQuickStatus }: {
+function EntryCard({ entry, index, onClick, revealed = true, selectionMode, selected, onToggleSelect, onQuickStatus }: {
   entry: EditableEntry
   index: number
   onClick: () => void
+  // Gates the entrance transition. Sections pass their own in-view state so a
+  // section's cascade runs when it scrolls into view rather than all seven
+  // sections firing at once on mount. Defaults true for the Continue shelf,
+  // which is above the fold and animates on mount as it always has.
+  revealed?: boolean
   selectionMode?: boolean
   selected?: boolean
   onToggleSelect?: () => void
@@ -244,10 +264,14 @@ function EntryCard({ entry, index, onClick, selectionMode, selected, onToggleSel
     else onClick()
   }
 
+  // One frame after the card is both mounted and revealed, flip to the visible
+  // class so the CSS transition (and this card's stagger delay) actually runs —
+  // setting both classes in the same frame would skip the transition entirely.
   useEffect(() => {
+    if (!revealed) return
     const raf = requestAnimationFrame(() => setEntered(true))
     return () => cancelAnimationFrame(raf)
-  }, [])
+  }, [revealed])
 
   // The transform is written straight to the DOM node instead of through
   // state — a state update would re-render the whole card on every frame of
@@ -311,7 +335,7 @@ function EntryCard({ entry, index, onClick, selectionMode, selected, onToggleSel
       exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.15 } }}
       transition={{ layout: { type: 'spring', stiffness: 200, damping: 25 } }}
       whileHover={{
-        boxShadow: '0 0 20px 3px rgba(212,175,106,0.35)',
+        boxShadow: '0 0 20px 3px rgba(183,110,121,0.35)',
         transition: { duration: 0.3, ease: 'easeOut' },
       }}
       onClick={handleActivate}
@@ -327,7 +351,7 @@ function EntryCard({ entry, index, onClick, selectionMode, selected, onToggleSel
         background: 'var(--color-surface)',
         border: '1px solid var(--color-border)',
         borderRadius: 12,
-        boxShadow: '0 0 0px 0px rgba(212,175,106,0)',
+        boxShadow: '0 0 0px 0px rgba(183,110,121,0)',
         opacity: selectionMode && !selected ? 0.7 : 1,
         transition: 'opacity 0.2s ease',
       }}
@@ -375,8 +399,8 @@ function EntryCard({ entry, index, onClick, selectionMode, selected, onToggleSel
             style={{
               width: 20,
               height: 20,
-              border: '2px solid var(--color-gold)',
-              background: selected ? 'var(--color-gold)' : 'rgba(8,8,8,0.55)',
+              border: '2px solid var(--color-accent)',
+              background: selected ? 'var(--color-accent)' : 'rgba(8,8,8,0.55)',
             }}
           >
             {selected && (
@@ -442,7 +466,7 @@ function EntryCard({ entry, index, onClick, selectionMode, selected, onToggleSel
           >
             <div
               className="h-full"
-              style={{ width: `${progress}%`, background: '#D4AF6A' }}
+              style={{ width: `${progress}%`, background: 'var(--color-accent)' }}
             />
           </div>
         )}
@@ -464,7 +488,7 @@ function EntryCard({ entry, index, onClick, selectionMode, selected, onToggleSel
           {entry.rating !== null && (
             <span
               className="text-xs font-medium flex items-center gap-1"
-              style={{ color: 'rgba(212,175,106,0.8)' }}
+              style={{ color: 'rgba(183,110,121,0.8)' }}
             >
               <span aria-hidden="true" style={{ fontSize: 10 }}>★</span>
               {entry.rating}
@@ -487,14 +511,87 @@ function EntryCard({ entry, index, onClick, selectionMode, selected, onToggleSel
   )
 }
 
+// One labeled band of the continuous vault page. Only rendered when it has
+// entries, so this never has to draw an empty state of its own.
+function VaultSection({
+  label, type, entries, selectionMode, selectedIds, onEdit, onToggleSelect, onQuickStatus,
+}: {
+  label: string
+  type: Tab
+  entries: EditableEntry[]
+  selectionMode: boolean
+  selectedIds: Set<string>
+  onEdit: (entry: EditableEntry) => void
+  onToggleSelect: (id: string) => void
+  onQuickStatus: (entry: EditableEntry, next: string) => void
+}) {
+  const ref = useRef<HTMLElement>(null)
+  // `amount` is the fraction of *this section* that must be visible, and a
+  // section taller than the viewport can never reach a high ratio — 0.05 keeps
+  // it reachable at any section height while still waiting for the band to
+  // actually appear. once: true so scrolling back up doesn't replay it.
+  const inView = useInView(ref, { once: true, amount: 0.05 })
+
+  return (
+    <section ref={ref} className="pb-6">
+      <h2
+        className="flex items-center gap-2.5 px-6 mb-2.5"
+        style={{
+          fontSize: 11,
+          fontWeight: 500,
+          letterSpacing: '0.28em',
+          textTransform: 'uppercase',
+          color: 'var(--color-text-muted)',
+          // same trick the old index tabs used — keeps the label legible where
+          // a bright aurora band passes behind it
+          textShadow: '0 1px 6px rgba(8, 8, 8, 0.9)',
+        }}
+      >
+        <span
+          aria-hidden="true"
+          className="rounded-full flex-shrink-0"
+          style={{
+            width: 7,
+            height: 7,
+            background: TYPE_DOT_COLORS[type],
+            boxShadow: '0 0 0 2px rgba(8,8,8,0.7)',
+          }}
+        />
+        {label}
+      </h2>
+
+      <div
+        className="grid gap-6 px-6"
+        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}
+      >
+        <AnimatePresence mode="popLayout">
+          {entries.map((entry, i) => (
+            <EntryCard
+              key={entry.id}
+              entry={entry}
+              index={i}
+              revealed={inView}
+              onClick={() => onEdit(entry)}
+              selectionMode={selectionMode}
+              selected={selectedIds.has(entry.id)}
+              onToggleSelect={() => onToggleSelect(entry.id)}
+              onQuickStatus={next => onQuickStatus(entry, next)}
+            />
+          ))}
+        </AnimatePresence>
+      </div>
+    </section>
+  )
+}
+
 // Two line segments with a 12px gap around the diamond — reads as one rule
 // that breaks around the ornament, without needing a background patch to mask
 // the line (a solid patch would show against the aurora).
 function OrnamentDivider() {
   return (
-    <div className="flex items-center px-6" style={{ margin: '20px 0', gap: 12 }} aria-hidden="true">
+    <div className="flex items-center px-6" style={{ margin: '10px 0 14px', gap: 12 }} aria-hidden="true">
       <span className="flex-1" style={{ height: 1, background: 'var(--color-border)' }} />
-      <span style={{ color: 'var(--color-gold)', fontSize: 8, lineHeight: 1 }}>◆</span>
+      <span style={{ color: 'var(--color-accent)', fontSize: 8, lineHeight: 1 }}>◆</span>
       <span className="flex-1" style={{ height: 1, background: 'var(--color-border)' }} />
     </div>
   )
@@ -522,8 +619,8 @@ function SkeletonCard() {
 
 function SkeletonShelf() {
   return (
-    <div className="pt-6 pb-2">
-      <h2 className="text-sm font-semibold px-6 mb-3" style={{ color: 'var(--color-text)' }}>
+    <div className="pb-4">
+      <h2 className="text-sm font-semibold px-6 mb-2" style={{ color: 'var(--color-text)' }}>
         Continue
       </h2>
       <div className="flex gap-4 overflow-x-auto px-6 pb-2">
@@ -540,22 +637,31 @@ function SkeletonShelf() {
 interface Props {
   userId: string
   refreshKey: number
-  typeFilter: 'all' | Tab
-  onTypeFilterChange: (tab: 'all' | Tab) => void
   // Entries state lives in App so the vault header can show live counts;
   // this component still owns fetching and all mutations via the setter.
   entries: EditableEntry[]
   setEntries: Dispatch<SetStateAction<EditableEntry[]>>
+  // The identity half of the merged header. App computes the count line and
+  // owns the Add drawer's open state and contents; EntryList owns the row they
+  // share with the filter controls, since those controls' state lives here.
+  countLine: string
+  showAdd: boolean
+  onToggleAdd: () => void
+  addDrawer: ReactNode
+  // Scroll-driven, computed in App because App owns <main>, the scroll container.
+  collapsed: boolean
 }
 
-export default function EntryList({ userId, refreshKey, typeFilter, onTypeFilterChange, entries, setEntries }: Props) {
+export default function EntryList({
+  userId, refreshKey, entries, setEntries,
+  countLine, showAdd, onToggleAdd, addDrawer, collapsed,
+}: Props) {
   const [loading, setLoading]         = useState(true)
   const [fetchError, setFetchError]   = useState<string | null>(null)
   const [retryTick, setRetryTick]     = useState(0)
   const [editing, setEditing]         = useState<EditableEntry | null>(null)
   const [statusFilter, setStatusFilter]= useState('')
   const [genreFilter,  setGenreFilter] = useState('')
-  const [sortBy,       setSortBy]      = useState('newest')
   const [selectionMode, setSelectionMode]     = useState(false)
   const [selectedIds, setSelectedIds]         = useState<Set<string>>(new Set())
   const [confirmingBulkDelete, setConfirmingBulkDelete] = useState(false)
@@ -597,41 +703,43 @@ export default function EntryList({ userId, refreshKey, typeFilter, onTypeFilter
     return [...set].sort()
   }, [entries])
 
-  // Entries for the current tab before status/genre filtering — used to tell
-  // "this tab is truly empty" (per-tab empty state) apart from "filters
-  // excluded everything" (generic message).
-  const tabEntries = useMemo(
-    () => entries.filter(e => matchesTypeTab(e, typeFilter)),
-    [entries, typeFilter]
-  )
-
-  const visible = useMemo(() => {
-    let result = tabEntries
+  // Status/genre filters apply to the whole vault first; the result is then
+  // split into sections, so a filter narrows what's in each section rather
+  // than which sections exist.
+  const filtered = useMemo(() => {
+    let result = entries
     if (statusFilter) result = result.filter(e => e.status === statusFilter)
     if (genreFilter)  result = result.filter(e => e.genres?.includes(genreFilter) ?? false)
-    if (sortBy === 'year_desc') {
-      result = [...result].sort((a, b) => {
-        if (!a.year && !b.year) return 0
-        if (!a.year) return 1
-        if (!b.year) return -1
-        return Number(b.year) - Number(a.year)
-      })
-    } else if (sortBy === 'year_asc') {
-      result = [...result].sort((a, b) => {
-        if (!a.year && !b.year) return 0
-        if (!a.year) return 1
-        if (!b.year) return -1
-        return Number(a.year) - Number(b.year)
-      })
-    } else if (sortBy === 'title_az') {
-      result = [...result].sort((a, b) => a.title.localeCompare(b.title))
-    }
     return result
-  }, [tabEntries, statusFilter, genreFilter, sortBy])
+  }, [entries, statusFilter, genreFilter])
 
+  // One bucket per type, always A–Z, empties dropped. An entry can legitimately
+  // land in two buckets (an anime film matches both anime and movie) — that's
+  // the crossover rule from the old tabs, and it's safe here because every
+  // cross-section behaviour is keyed on entry id, not on card identity:
+  // selection is a Set of ids, and bulk delete filters state by id, so both
+  // renderings of an entry stay in lockstep and delete once.
+  // .filter() already returns a fresh array, so sorting it in place is safe.
+  const sections = useMemo(
+    () =>
+      VAULT_SECTIONS
+        .map(section => ({
+          ...section,
+          entries: filtered
+            .filter(e => matchesTypeTab(e, section.value))
+            .sort((a, b) => a.title.localeCompare(b.title)),
+        }))
+        .filter(section => section.entries.length > 0),
+    [filtered]
+  )
+
+  // Deliberately reads from `entries`, not `filtered`: the shelf has never
+  // been narrowed by the status/genre dropdowns, only by the (now removed)
+  // tab. Filtering it by status would be self-defeating anyway — picking any
+  // status other than "Watching / Reading" would empty the shelf.
   const inProgress = useMemo(
-    () => tabEntries.filter(e => e.status === 'in_progress'),
-    [tabEntries]
+    () => entries.filter(e => e.status === 'in_progress'),
+    [entries]
   )
 
   function handleSaved(updated: Pick<EditableEntry, 'id' | 'status' | 'rating' | 'metadata'>) {
@@ -666,7 +774,7 @@ export default function EntryList({ userId, refreshKey, typeFilter, onTypeFilter
     setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: next } : e))
     if (next === 'completed') {
       toast.success(`Marked ${entry.title} as Completed`, {
-        icon: <span style={{ color: 'var(--color-gold)', fontWeight: 700 }}>✓</span>,
+        icon: <span style={{ color: 'var(--color-accent)', fontWeight: 700 }}>✓</span>,
       })
     } else {
       toast.success(`Moved ${entry.title} to ${statusLabel(next, entry.type)}`)
@@ -725,66 +833,24 @@ export default function EntryList({ userId, refreshKey, typeFilter, onTypeFilter
     }
   }
 
-  if (loading) {
-    return (
-      <>
-        <SkeletonShelf />
-        <div
-          className="grid gap-6 px-6 pt-6 pb-10"
-          style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}
-        >
-          {Array.from({ length: 10 }, (_, i) => <SkeletonCard key={i} />)}
-        </div>
-      </>
-    )
-  }
-
   return (
     <>
-      {/* Single toolbar line: index tabs left, filter controls right (they wrap
-          below on narrow viewports). Rendered even when the current tab is
-          empty — the tabs are the way to switch back out. */}
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-3 px-6 pt-4 pb-2">
-        <div className="flex gap-4 flex-wrap items-center">
-          {INDEX_TABS.map(t => {
-            const active = typeFilter === t.value
-            const count = entries.filter(e => matchesTypeTab(e, t.value)).length
-            return (
-              <button
-                key={t.value}
-                onClick={() => onTypeFilterChange(t.value)}
-                className={`text-xs font-medium uppercase whitespace-nowrap cursor-pointer transition-colors ${
-                  active ? 'text-[#D4AF6A]' : 'text-[#9A9590] hover:text-[#F2EFE9]'
-                }`}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  padding: '2px 0 6px',
-                  letterSpacing: '0.08em',
-                  borderBottom: active ? '2px solid #D4AF6A' : '2px solid transparent',
-                  // keeps the labels legible over bright aurora bands
-                  textShadow: '0 1px 6px rgba(8, 8, 8, 0.9)',
-                }}
-              >
-                {t.label}
-                {/* count in a slightly more muted shade than its label */}
-                <span
-                  style={{
-                    marginLeft: 5,
-                    color: active ? 'rgba(212,175,106,0.75)' : '#52504B',
-                  }}
-                >
-                  {count}
-                </span>
-              </button>
-            )
-          })}
+      {/* One merged row: identity left, every browsing control right. The
+          identity block and the Add button come from App (which owns the
+          drawer); the filters and Select live here because their state does.
+          Wraps naturally on narrow windows via flex-wrap, same as the toolbar
+          it replaced. */}
+      <div className={`vault-header${showAdd ? ' has-drawer' : ''}${collapsed ? ' is-collapsed' : ''}`}>
+        <div className="vault-header-identity">
+          <h1 className="vault-header-title">The Vault</h1>
+          {countLine && <span className="vault-header-count">{countLine}</span>}
         </div>
 
-        <div className="flex flex-wrap gap-2 items-center ml-auto">
+        <div className="vault-header-controls">
           <Dropdown
             ariaLabel="Filter by status"
-            options={[{ value: '', label: 'All Statuses' }, ...STATUS_FILTER_OPTIONS]}
+            icon={<StatusIcon />}
+            options={[{ value: '', label: 'Status' }, ...STATUS_FILTER_OPTIONS]}
             value={statusFilter}
             onChange={setStatusFilter}
           />
@@ -792,7 +858,8 @@ export default function EntryList({ userId, refreshKey, typeFilter, onTypeFilter
           {genres.length > 0 && (
             <Dropdown
               ariaLabel="Filter by genre"
-              options={[{ value: '', label: 'All Genres' }, ...genres.map(g => ({ value: g, label: g }))]}
+              icon={<GenreIcon />}
+              options={[{ value: '', label: 'Genre' }, ...genres.map(g => ({ value: g, label: g }))]}
               value={genreFilter}
               onChange={setGenreFilter}
             />
@@ -807,64 +874,56 @@ export default function EntryList({ userId, refreshKey, typeFilter, onTypeFilter
               <button
                 onClick={() => setConfirmingBulkDelete(false)}
                 disabled={bulkDeleting}
-                className="rounded px-2.5 py-1.5 text-xs cursor-pointer hover:opacity-80 disabled:opacity-50"
-                style={SELECT_STYLE}
+                className="vault-control cursor-pointer disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 onClick={handleBulkDelete}
                 disabled={bulkDeleting}
-                className="rounded px-2.5 py-1.5 text-xs font-semibold cursor-pointer hover:opacity-90 disabled:opacity-50"
-                style={{ background: 'var(--color-danger)', color: '#F2EFE9', border: 'none' }}
+                className="vault-control is-danger cursor-pointer disabled:opacity-50"
               >
                 {bulkDeleting ? 'Deleting…' : 'Delete'}
               </button>
             </>
           ) : selectionMode ? (
             <>
-              <span
-                className="rounded px-2.5 py-1.5 text-xs"
-                style={{ ...SELECT_STYLE, color: 'var(--color-text-muted)' }}
-              >
+              <span className="vault-control is-readout">
                 {selectedIds.size} selected
               </span>
               {selectedIds.size > 0 && (
                 <button
                   onClick={() => setConfirmingBulkDelete(true)}
-                  className="rounded px-2.5 py-1.5 text-xs font-semibold cursor-pointer hover:opacity-90"
-                  style={{ background: 'var(--color-danger)', color: '#F2EFE9', border: 'none' }}
+                  className="vault-control is-danger cursor-pointer"
                 >
                   Delete
                 </button>
               )}
               <button
                 onClick={exitSelectionMode}
-                className="rounded px-2.5 py-1.5 text-xs cursor-pointer hover:opacity-80"
-                style={SELECT_STYLE}
+                className="vault-control cursor-pointer"
               >
-                Cancel
+                Done
               </button>
             </>
           ) : (
             <button
               onClick={() => setSelectionMode(true)}
-              className="rounded px-2.5 py-1.5 text-xs cursor-pointer hover:opacity-80"
-              style={SELECT_STYLE}
+              className="vault-control cursor-pointer"
             >
-              Select
+              <CurateIcon />
+              Curate
             </button>
           )}
-
-          <Dropdown
-            ariaLabel="Sort by"
-            options={SORT_OPTIONS}
-            value={sortBy}
-            onChange={setSortBy}
-          />
           </div>
+
+          <button onClick={onToggleAdd} className="vault-add-btn cursor-pointer">
+            {showAdd ? 'Close' : '+ Archive'}
+          </button>
         </div>
       </div>
+
+      {addDrawer}
 
       {bulkDeleteError && (
         <p className="text-xs px-6 pb-2" style={{ color: 'var(--color-danger)' }}>{bulkDeleteError}</p>
@@ -879,18 +938,30 @@ export default function EntryList({ userId, refreshKey, typeFilter, onTypeFilter
 
       <OrnamentDivider />
 
-      {tabEntries.length === 0 && (
-        fetchError
-          ? <FetchErrorState message={fetchError} onRetry={() => setRetryTick(t => t + 1)} />
-          : <EmptyState tab={typeFilter} />
+      {loading && (
+        <>
+          <SkeletonShelf />
+          <div
+            className="grid gap-6 px-6 pb-10"
+            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}
+          >
+            {Array.from({ length: 10 }, (_, i) => <SkeletonCard key={i} />)}
+          </div>
+        </>
       )}
 
-      {tabEntries.length > 0 && inProgress.length > 0 && (
-        <div className="pb-2">
-          <h2 className="text-sm font-semibold px-6 mb-3" style={{ color: 'var(--color-text)' }}>
+      {!loading && entries.length === 0 && (
+        fetchError
+          ? <FetchErrorState message={fetchError} onRetry={() => setRetryTick(t => t + 1)} />
+          : <EmptyState />
+      )}
+
+      {!loading && entries.length > 0 && inProgress.length > 0 && (
+        <div className="pb-4">
+          <h2 className="text-sm font-semibold px-6 mb-2" style={{ color: 'var(--color-text)' }}>
             Continue
           </h2>
-          <div className="flex gap-4 overflow-x-auto px-6 pb-2">
+          <div className="flex gap-4 overflow-x-auto px-6 pb-1">
             {inProgress.map((entry, i) => (
               <div key={entry.id} style={{ width: 150, flexShrink: 0 }}>
                 <EntryCard
@@ -905,29 +976,32 @@ export default function EntryList({ userId, refreshKey, typeFilter, onTypeFilter
         </div>
       )}
 
-      {tabEntries.length > 0 && (visible.length === 0 ? (
-        <p className="text-center text-sm mt-8" style={{ color: 'var(--color-text-muted)' }}>
+      {/* Sections with nothing in them aren't rendered at all — no heading, no
+          placeholder. That covers both "the filters excluded this type" and
+          "you've never added one", deliberately: seven standing invitations on
+          a new or narrow vault would be more absence than content, and on a
+          continuous scroll a missing band reads as nothing rather than as a
+          gap. The two cases that do need words are still handled — an entirely
+          empty vault above, and filtered-to-nothing here. */}
+      {!loading && entries.length > 0 && (sections.length === 0 ? (
+        <p className="text-center text-sm mt-8 pb-10" style={{ color: 'var(--color-text-muted)' }}>
           No entries match these filters.
         </p>
       ) : (
-        <div
-          className="grid gap-6 px-6 pb-10"
-          style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}
-        >
-          <AnimatePresence mode="popLayout">
-          {visible.map((entry, i) => (
-            <EntryCard
-              key={entry.id}
-              entry={entry}
-              index={i}
-              onClick={() => setEditing(entry)}
+        <div className="pb-10">
+          {sections.map(section => (
+            <VaultSection
+              key={section.value}
+              label={section.label}
+              type={section.value}
+              entries={section.entries}
               selectionMode={selectionMode}
-              selected={selectedIds.has(entry.id)}
-              onToggleSelect={() => toggleSelect(entry.id)}
-              onQuickStatus={next => quickSetStatus(entry, next)}
+              selectedIds={selectedIds}
+              onEdit={setEditing}
+              onToggleSelect={toggleSelect}
+              onQuickStatus={quickSetStatus}
             />
           ))}
-          </AnimatePresence>
         </div>
       ))}
 

@@ -243,7 +243,6 @@ export default function MediaSearch({ userId, onSaved }: Props) {
   // yet" (idle, or still within the debounce window before the fetch fires).
   const [hasSearched, setHasSearched] = useState(false)
   const [searchRetryTick, setSearchRetryTick] = useState(0)
-  const [saved, setSaved] = useState<number | string | null>(null)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -319,14 +318,12 @@ export default function MediaSearch({ userId, onSaved }: Props) {
     setTab(next)
     setQuery('')
     setResults([])
-    setSaved(null)
     setSaveError('')
   }
 
   async function handleSelect(result: SearchResult) {
     if (saving) return
     setSaving(true)
-    setSaved(null)
     setSaveError('')
 
     let title: string
@@ -412,18 +409,13 @@ export default function MediaSearch({ userId, onSaved }: Props) {
       // already added, which isn't a failure worth an error state.
       if (error.code === '23505') {
         toast(`${title} is already in your library`, {
-          style: { border: '1px solid var(--color-gold)' },
+          style: { border: '1px solid var(--color-accent)' },
         })
       } else {
         setSaveError(error.message)
         toast.error(error.message, { style: { border: '1px solid var(--color-danger)' } })
       }
     } else {
-      setSaved(
-        isBookResult(result) ? result.key :
-        isMangaResult(result) && result._source === 'mangadex' ? result.id :
-        (result as TaggedTmdbResult | TaggedAniListAnime).id
-      )
       setQuery('')
       setResults([])
       toast.success(`Added ${title} to your library`)
@@ -473,13 +465,13 @@ export default function MediaSearch({ userId, onSaved }: Props) {
               key={t.value}
               onClick={() => switchTab(t.value)}
               className={`text-sm font-medium cursor-pointer whitespace-nowrap transition-colors ${
-                tab === t.value ? 'text-[#D4AF6A]' : 'text-[#9A9590] hover:text-[#F2EFE9]'
+                tab === t.value ? 'text-[#B76E79]' : 'text-[#9A9590] hover:text-[#F2EFE9]'
               }`}
               style={{
                 background: 'none',
                 border: 'none',
                 padding: '2px 0 4px',
-                borderBottom: tab === t.value ? '2px solid #D4AF6A' : '2px solid transparent',
+                borderBottom: tab === t.value ? '2px solid #B76E79' : '2px solid transparent',
               }}
             >
               {t.label}
@@ -492,7 +484,6 @@ export default function MediaSearch({ userId, onSaved }: Props) {
           placeholder={placeholder}
           value={query}
           onChange={e => {
-            setSaved(null)
             setSaveError('')
             setQuery(e.target.value)
           }}
@@ -502,11 +493,11 @@ export default function MediaSearch({ userId, onSaved }: Props) {
 
         <button
           onClick={() => setShowManual(true)}
-          className="text-xs cursor-pointer hover:bg-[var(--color-gold)] hover:text-[var(--color-background)] whitespace-nowrap rounded px-3 py-2 flex-shrink-0"
+          className="text-xs cursor-pointer hover:bg-[var(--color-accent)] hover:text-[var(--color-background)] whitespace-nowrap rounded px-3 py-2 flex-shrink-0"
           style={{
             background: 'none',
-            border: '1px solid var(--color-gold)',
-            color: 'var(--color-gold)',
+            border: '1px solid var(--color-accent)',
+            color: 'var(--color-accent)',
             transition: 'background-color 0.15s, color 0.15s',
           }}
         >
@@ -543,17 +534,11 @@ export default function MediaSearch({ userId, onSaved }: Props) {
             type="button"
             onClick={() => setShowManual(true)}
             className="cursor-pointer underline"
-            style={{ background: 'none', border: 'none', padding: 0, color: 'var(--color-gold)' }}
+            style={{ background: 'none', border: 'none', padding: 0, color: 'var(--color-accent)' }}
           >
             adding manually
           </button>
           .
-        </p>
-      )}
-
-      {saved !== null && (
-        <p className="text-sm" style={{ color: 'var(--color-text)' }}>
-          Added to your list.
         </p>
       )}
 
