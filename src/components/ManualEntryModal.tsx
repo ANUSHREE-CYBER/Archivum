@@ -15,12 +15,21 @@ const TYPE_OPTIONS = [
 
 // Mirrors the format column: cross-category classification so e.g. a manually
 // added anime film can surface under the Movie tab like API-sourced ones do.
+// 'comic' is deliberately not offered: it's the only sensible value for the
+// two comic types and nothing else can hold it, so it's applied on save rather
+// than asked for (see COMIC_TYPES below).
 const FORMAT_OPTIONS = [
   { value: '',       label: '—' },
   { value: 'movie',  label: 'Movie' },
   { value: 'series', label: 'Series' },
-  { value: 'comic',  label: 'Comic' },
 ]
+
+// Manga and manhwa have no format choice to make — a comic is always a comic,
+// and Movie/Series are meaningless for them (worse, they used to be selectable,
+// which is how a manga could end up cross-listed into TV Show). The selector is
+// hidden for these and 'comic' is written on save, matching what MediaSearch
+// already stores for imported manga.
+const COMIC_TYPES = new Set(['manga', 'manhwa'])
 
 interface Props {
   userId: string
@@ -66,7 +75,7 @@ export default function ManualEntryModal({ userId, onClose, onSaved }: Props) {
       user_id:    userId,
       title:      title.trim(),
       type,
-      format:     format || null,
+      format:     COMIC_TYPES.has(type) ? 'comic' : (format || null),
       year:       year || null,
       poster_url: posterUrl.trim() || null,
       genres:     genresList && genresList.length > 0 ? genresList : null,
@@ -145,7 +154,7 @@ export default function ManualEntryModal({ userId, onClose, onSaved }: Props) {
           </select>
         </div>
 
-        {type !== 'book' && (
+        {type !== 'book' && !COMIC_TYPES.has(type) && (
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
               Format{' '}

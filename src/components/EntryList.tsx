@@ -24,10 +24,33 @@ const STATUS_FILTER_OPTIONS = STATUS_OPTIONS.map(o => ({
 // Kdrama is explicitly excluded from the TV Show crossover so it keeps its own
 // section. Unchanged from the tab bar this replaced — the crossover rule is the
 // same one, which is why an anime film legitimately renders in two sections.
+
+// A comic is never a film or a show. ManualEntryModal no longer offers
+// Movie/Series for these two types, but rows saved before that fix can still
+// carry a stray format, and the column is nullable free-form as far as the
+// database is concerned. So both crossover branches below exclude them
+// outright — a hard floor, rather than an assumption about the data.
+const COMIC_TYPES = new Set(['manga', 'manhwa'])
+
 function matchesTypeTab(entry: EditableEntry, tab: Tab): boolean {
-  if (tab === 'movie') return entry.type === 'movie' || entry.format === 'movie'
+  if (tab === 'movie') {
+    if (COMIC_TYPES.has(entry.type)) return false
+    return entry.type === 'movie' || entry.format === 'movie'
+  }
   if (tab === 'tv_show') {
-    if (entry.type === 'kdrama') return false
+    if (COMIC_TYPES.has(entry.type)) return false
+    // Kdrama and anime own their sections outright. Both get format 'series'
+    // automatically on import (TMDB tv → 'series', AniList TV/OVA/ONA →
+    // 'series'), so without this guard every anime series would render a
+    // second time under TV Show purely as a side effect of how it was
+    // imported — nobody asked for it there.
+    //
+    // The asymmetry with the Movies branch above is deliberate, not an
+    // oversight: an anime *film* still crosses into Movies. A film is a film
+    // regardless of where it was made, and that crossover is the whole reason
+    // the format column exists. A series, though, already has a section of its
+    // own, so crossing it into TV Show only duplicates it.
+    if (entry.type === 'kdrama' || entry.type === 'anime') return false
     return entry.type === 'tv_show' || entry.format === 'series'
   }
   return entry.type === tab
