@@ -130,6 +130,19 @@ export default function Dropdown({ options, value, onChange, ariaLabel, icon }: 
         </svg>
       </button>
 
+      {/* onMouseDown/preventDefault is load-bearing, not a nicety. The options
+          are plain divs and nothing inside the menu is focusable, so a real
+          mousedown on one runs its default action and moves focus off the
+          trigger to <body>. That fires focusout with relatedTarget null, which
+          the onBlur above reads as "focus left the dropdown" and closes the
+          menu — during mousedown, before mouseup. The option is unmounted by
+          then, so the browser never dispatches click to it and onChange never
+          runs: the menu just blinks shut and nothing is selected. Suppressing
+          the default action keeps focus on the trigger, which is the invariant
+          this component is built around anyway (see the note at the top).
+          It sits on the container rather than each option so it also covers
+          mousedown on the menu's own padding and scrollbar; preventDefault on
+          mousedown blocks focus and text selection, not the click event. */}
       {open && (
         <div
           ref={menuRef}
@@ -137,6 +150,7 @@ export default function Dropdown({ options, value, onChange, ariaLabel, icon }: 
           role="listbox"
           aria-label={ariaLabel}
           className="dropdown-menu absolute left-0 top-full mt-1.5 z-50"
+          onMouseDown={e => e.preventDefault()}
         >
           {options.map((opt, i) => {
             const isSelected = opt.value === value
