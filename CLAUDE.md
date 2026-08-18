@@ -152,6 +152,8 @@ A full codebase review was done by Claude Fable 5, covering bugs, TypeScript iss
 
 - Deploy to Vercel
 - Add `totalEpisodes`/`totalChapters` to the edit modal so progress bars work beyond books
+- **Landing page cursor consistency.** The canvas spotlight effect only exists in the hero section. Below it (Collection, Plate) the cursor reverts to the plain default browser arrow, which feels inconsistent. Planned fix, two parts: (a) smooth the spotlight's darkness/vignette fade-out as the hero ends, rather than the current abrupt cutoff, and (b) add a simple static branded cursor for the sections below the hero — CSS-only, no JS tracking, e.g. `cursor: url(...)` with a small rose gold mark — so nothing ever falls back to a fully generic cursor. Related: the global `* { cursor: none !important }` in `index.css` and the `.lp-section { cursor: auto }` override that currently undoes it below the hero.
+- **Landing page poster rearrangement.** The poster positions on the right side of the hero collage were rearranged at some earlier point, but the left side was not. Needs a symmetry/balance pass across the full collage. What changed on the right vs. what the left needs is still to be clarified — start that session by asking rather than inferring from the current coordinates.
 All four loose ends from the previous session are now cleared: `--color-success` and `public/icons.svg` deleted, vault modal inputs given a focus state (`.vault-input` in `index.css`), and `matchesTypeTab()` narrowed to `Tab`.
 
 Note `EntryEditModal` still uses a native `<select>` for Status — the only one left, despite the note above that `Dropdown` replaced all native selects. It now shares `.vault-input`, so it is at least styled and focusable consistently.
