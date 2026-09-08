@@ -2,6 +2,8 @@
 
 **One vault for every world you've visited.**
 
+🌐 **[Live Demo](https://archivum-theta.vercel.app/)**
+
 Archivum is a personal media archive — a single place to record the films, series, k-dramas, anime, books, manga and manhwa you've actually been through. Not a feed, not a social network, not a recommendation engine. An index of everywhere you've been, kept in order.
 
 It's built as a solo project: a real tool for daily use, and a portfolio piece for the craft that went into it.
