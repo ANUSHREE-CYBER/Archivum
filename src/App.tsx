@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Toaster } from 'sonner'
@@ -8,7 +8,7 @@ import MediaSearch from './components/MediaSearch'
 import EntryList from './components/EntryList'
 import type { EditableEntry } from './components/EntryEditModal'
 import RingCursor from './components/RingCursor'
-import { AuroraBackground } from './components/AuroraBackground'
+import QuietWallBackground from './components/QuietWallBackground'
 
 // Recharts (StatsDashboard's main dependency) is the largest chunk in the
 // app and most sessions never open Stats — load it only when they do.
@@ -41,6 +41,11 @@ function App() {
     completedCount > 0 && `${completedCount} completed`,
     inProgressCount > 0 && `${inProgressCount} in progress`,
   ].filter(Boolean).join(' · ')
+  // The backdrop's poster wall is built from the user's own posters
+  const backdropPosters = useMemo(
+    () => entries.flatMap(e => (e.poster_url ? [e.poster_url] : [])),
+    [entries],
+  )
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -106,7 +111,8 @@ function App() {
           },
         }}
       />
-      <AuroraBackground className="h-full flex-col items-stretch justify-start vault-page">
+      <div className="flex h-full flex-col text-[#F2EFE9] vault-page">
+        <QuietWallBackground posters={backdropPosters} scrollRef={mainRef} />
         <header
           className="flex items-center justify-between px-6 py-4"
           style={{
@@ -227,7 +233,7 @@ function App() {
         >
           This product uses the TMDB API but is not endorsed or certified by TMDB. Additional data from AniList and Open Library.
         </footer>
-      </AuroraBackground>
+      </div>
     </>
   )
 }

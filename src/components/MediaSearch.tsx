@@ -434,7 +434,7 @@ export default function MediaSearch({ userId, onSaved }: Props) {
   return (
     <>
     {/* Full-width drawer under the filter tab row — frosted glass over the
-        aurora. The slide open/close animation lives in App.tsx (AnimatePresence
+        backdrop. The slide open/close animation lives in App.tsx (AnimatePresence
         around the mount), since exit animations need the component that owns
         the conditional. */}
     <div

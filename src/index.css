@@ -1,17 +1,5 @@
 @import "tailwindcss";
 
-@theme inline {
-  --animate-aurora: aurora 60s linear infinite;
-  @keyframes aurora {
-    from {
-      background-position: 50% 50%, 50% 50%;
-    }
-    to {
-      background-position: 350% 50%, 350% 50%;
-    }
-  }
-}
-
 @theme {
   --color-background: #080808;
   --color-surface: #111111;
@@ -55,7 +43,7 @@
 }
 
 /* position + z-index together give this its own stacking context, so the
-   aurora background (z-index: -1) is guaranteed to paint behind the static
+   Quiet wall backdrop (z-index: -1) is guaranteed to paint behind the static
    header/main/footer content without needing to touch those elements. */
 .vault-page {
   background-color: #080808;
@@ -89,7 +77,7 @@
   transition: padding 0.25s ease, background-color 0.25s ease, border-color 0.25s ease;
 }
 /* Only drawn while the Add drawer is open — that's the one moment the header
-   needs an edge, so it doesn't earn a permanent line across the aurora.
+   needs an edge, so it doesn't earn a permanent line across the backdrop.
    Declared before .is-collapsed so the collapsed (stronger) border still wins
    when both apply. */
 .vault-header.has-drawer {

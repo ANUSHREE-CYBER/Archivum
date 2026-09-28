@@ -142,7 +142,7 @@ const TYPE_LABELS: Record<string, string> = {
 function EmptyState() {
   return (
     <div className="flex items-center justify-center px-6" style={{ minHeight: '45vh' }}>
-      {/* soft dark scrim so the muted text stays readable over bright aurora bands */}
+      {/* soft dark scrim so the muted text stays readable over the backdrop */}
       <div
         className="flex items-center gap-2.5 rounded-lg px-5 py-3"
         style={{ background: 'rgba(8,8,8,0.5)' }}
@@ -565,7 +565,7 @@ function VaultSection({
           textTransform: 'uppercase',
           color: 'var(--color-text-muted)',
           // same trick the old index tabs used — keeps the label legible where
-          // a bright aurora band passes behind it
+          // the backdrop shows behind it
           textShadow: '0 1px 6px rgba(8, 8, 8, 0.9)',
         }}
       >
@@ -608,7 +608,7 @@ function VaultSection({
 
 // Two line segments with a 12px gap around the diamond — reads as one rule
 // that breaks around the ornament, without needing a background patch to mask
-// the line (a solid patch would show against the aurora).
+// the line (a solid patch would show against the backdrop).
 function OrnamentDivider() {
   return (
     <div className="flex items-center px-6" style={{ margin: '10px 0 14px', gap: 12 }} aria-hidden="true">

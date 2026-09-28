@@ -179,7 +179,7 @@ export default function EntryEditModal({ entry, onClose, onSaved, onDeleted }: P
         className="flex flex-col gap-5 rounded-lg w-full max-w-sm p-6"
         style={{
           // Frosted glass, same recipe as the Add drawer. The scrim above is
-          // 0.4 (not the drawer-less 0.6 default) so enough aurora light
+          // 0.4 (not the drawer-less 0.6 default) so enough backdrop light
           // reaches the glass for the blur to actually read as frosted.
           background: 'rgba(17, 17, 17, 0.85)',
           backdropFilter: 'blur(12px)',
