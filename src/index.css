@@ -52,6 +52,118 @@
   overflow: hidden;
 }
 
+/* ── App header ─────────────────────────────────────────────────────────────
+   Wordmark + Library/Stats switch left, Log out right. Never scrolls — it
+   sits outside <main>. The bottom edge is a 1px gradient hairline that fades
+   out at both ends and warms to rose in the middle, drawn as a pseudo-element
+   so it doesn't add to the header's height. */
+.app-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 24px;
+  background: rgba(8, 8, 8, 0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.app-header::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, #1E1E1E 15%, rgba(183, 110, 121, 0.55) 50%, #1E1E1E 85%, transparent 100%);
+  pointer-events: none;
+}
+.app-header-left {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+}
+
+/* Same hand-built small caps as the landing logo (Georgia has no real small
+   caps). The sheen is a 300%-wide gradient with a bright band in the middle;
+   sliding background-position 100% → 0% sweeps that band across the letters.
+   The sweep takes the first 28% of a 7s cycle, then the word rests. */
+.app-wordmark {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 20px;
+  letter-spacing: 0.087em;
+  line-height: 1;
+  white-space: nowrap;
+  background: linear-gradient(100deg, #E4BCC3 0%, #96555F 30%, #B76E79 42%, #FFF1F4 50%, #B76E79 58%, #96555F 70%, #E4BCC3 100%);
+  background-size: 300% 100%;
+  background-position: 100% 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: wordmark-sheen 7s cubic-bezier(.2, .8, .2, 1) infinite;
+}
+.app-wordmark-sc {
+  font-size: 0.64em;
+}
+@keyframes wordmark-sheen {
+  0% { background-position: 100% 0; }
+  28%, 100% { background-position: 0% 0; }
+}
+
+.view-switch {
+  position: relative;
+  display: flex;
+  padding: 4px;
+  background: rgba(17, 17, 17, 0.7);
+  border: 1px solid #1E1E1E;
+  border-radius: 10px;
+}
+.view-switch-indicator {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  width: 96px;
+  border-radius: 7px;
+  background: #B76E79;
+  box-shadow: 0 6px 20px -6px rgba(183, 110, 121, 0.6);
+  transition: left 0.45s cubic-bezier(.2, .8, .2, 1);
+}
+.view-switch-btn {
+  position: relative;
+  z-index: 1;
+  width: 96px;
+  height: 34px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--color-text);
+  transition: color 0.3s ease;
+}
+.view-switch-btn.is-active {
+  font-weight: 600;
+  color: #080808;
+}
+
+.app-logout {
+  padding: 6px 0;
+  border: none;
+  background: none;
+  font-size: 14px;
+  color: var(--color-text-muted);
+  transition: color 0.2s ease;
+}
+.app-logout:hover {
+  color: var(--color-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-wordmark { animation: none; }
+  .view-switch-indicator { transition: none; }
+}
+
 /* ── Merged vault header ───────────────────────────────────────────────────
    One row: identity ("The Vault" + counts) left, browsing controls (Status,
    Genre, Select, +Add) right. Sticky against <main>, which is the scroll
@@ -71,7 +183,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px 16px;
-  padding: 10px 24px;
+  padding: 16px 24px;
   background: transparent;
   border-bottom: 1px solid transparent;
   transition: padding 0.25s ease, background-color 0.25s ease, border-color 0.25s ease;
@@ -101,7 +213,7 @@
 .vault-header-title {
   margin: 0;
   font-family: Georgia, 'Times New Roman', serif;
-  font-size: 23px;
+  font-size: 30px;
   font-weight: 400;
   letter-spacing: 0.02em;
   color: var(--color-text);
@@ -110,24 +222,55 @@
   transition: font-size 0.25s ease;
 }
 .vault-header.is-collapsed .vault-header-title {
-  font-size: 15px;
+  font-size: 17px;
 }
 /* The count line is the one thing allowed to disappear entirely — it's
    information, not a control. max-width rather than display:none so it
    collapses along the row instead of popping. */
 .vault-header-count {
-  font-size: 13px;
-  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
   white-space: nowrap;
   overflow: hidden;
   max-width: 460px;
   opacity: 1;
-  text-shadow: 0 1px 6px rgba(8, 8, 8, 0.9);
   transition: max-width 0.25s ease, opacity 0.18s ease;
 }
 .vault-header.is-collapsed .vault-header-count {
   max-width: 0;
   opacity: 0;
+}
+
+/* Count chips: quiet text until one is the active Status filter, then the
+   same rose "active" skin as a filter trigger that's set. Transparent border
+   (not none) so switching state doesn't shift the row by 2px. */
+.count-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  text-shadow: 0 1px 6px rgba(8, 8, 8, 0.9);
+  transition: all 0.2s ease;
+}
+.count-chip:hover {
+  color: var(--color-text);
+}
+.count-chip.is-active {
+  border-color: #96555F;
+  background: rgba(183, 110, 121, 0.12);
+  color: #E4BCC3;
+}
+.count-chip-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .vault-header-controls {
@@ -150,6 +293,43 @@
 .vault-header.is-collapsed .vault-header-controls button {
   padding: 4px 9px;
   font-size: 11px;
+}
+
+/* A filter that's set: its trigger goes rose, and a 16px × badge sits on
+   its top-right corner (ringed in the page colour so it reads as a separate
+   button). The badge's selector is long on purpose — it has to outrank the
+   collapsed-header rule above that pads every button in the controls row. */
+.filter-control {
+  position: relative;
+}
+.filter-control.is-active .dropdown-trigger {
+  border-color: #96555F;
+  background: rgba(183, 110, 121, 0.12);
+  color: #E4BCC3;
+}
+.filter-control.is-active .dropdown-trigger:hover,
+.filter-control.is-active .dropdown-trigger.is-open {
+  border-color: #B76E79;
+}
+.vault-header .vault-header-controls .filter-control .filter-clear {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: #B76E79;
+  color: #080808;
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+  box-shadow: 0 0 0 2px #080808;
+  transition: background-color 0.15s ease;
+}
+.vault-header .vault-header-controls .filter-control .filter-clear:hover {
+  background: #C98A93;
 }
 
 /* Outlined controls (Curate, Cancel, the "N selected" chip) share

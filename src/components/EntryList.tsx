@@ -139,6 +139,36 @@ const TYPE_LABELS: Record<string, string> = {
 // messages ("No anime in your vault yet.") went with the tab bar: a section
 // with nothing in it is now simply not rendered, so there is no per-type empty
 // state left to word. See the section-visibility note in the render below.
+// Wraps a filter Dropdown so it can show that a filter is set: the trigger
+// takes the rose "active" skin (via .filter-control.is-active in index.css)
+// and a small × badge clears it. The badge is a sibling of the Dropdown, not
+// inside it — the trigger is a <button>, and a button can't contain another.
+function FilterControl({ active, onClear, label, children }: {
+  active: boolean
+  onClear: () => void
+  label: string
+  children: ReactNode
+}) {
+  return (
+    <div className={`filter-control${active ? ' is-active' : ''}`}>
+      {children}
+      {active && (
+        <button
+          onClick={e => {
+            e.stopPropagation()
+            onClear()
+          }}
+          className="filter-clear cursor-pointer"
+          aria-label={`Clear ${label} filter`}
+          title="Clear"
+        >
+          ×
+        </button>
+      )}
+    </div>
+  )
+}
+
 function EmptyState() {
   return (
     <div className="flex items-center justify-center px-6" style={{ minHeight: '45vh' }}>
@@ -659,14 +689,12 @@ function SkeletonShelf() {
 interface Props {
   userId: string
   refreshKey: number
-  // Entries state lives in App so the vault header can show live counts;
-  // this component still owns fetching and all mutations via the setter.
+  // Entries state lives in App (the backdrop reads its posters); this
+  // component still owns fetching and all mutations via the setter.
   entries: EditableEntry[]
   setEntries: Dispatch<SetStateAction<EditableEntry[]>>
-  // The identity half of the merged header. App computes the count line and
-  // owns the Add drawer's open state and contents; EntryList owns the row they
-  // share with the filter controls, since those controls' state lives here.
-  countLine: string
+  // App owns the Add drawer's open state and contents; EntryList owns the
+  // header row they share with the filter controls, since that state lives here.
   showAdd: boolean
   onToggleAdd: () => void
   addDrawer: ReactNode
@@ -676,7 +704,7 @@ interface Props {
 
 export default function EntryList({
   userId, refreshKey, entries, setEntries,
-  countLine, showAdd, onToggleAdd, addDrawer, collapsed,
+  showAdd, onToggleAdd, addDrawer, collapsed,
 }: Props) {
   const [loading, setLoading]         = useState(true)
   const [fetchError, setFetchError]   = useState<string | null>(null)
@@ -855,6 +883,16 @@ export default function EntryList({
     }
   }
 
+  const countChips = useMemo(() => {
+    const completed  = entries.filter(e => e.status === 'completed').length
+    const inProgress = entries.filter(e => e.status === 'in_progress').length
+    return [
+      { status: '', color: '#6B6660', count: entries.length, label: `${entries.length} ${entries.length === 1 ? 'title' : 'titles'}` },
+      { status: 'completed', color: STATUS_COLORS.completed, count: completed, label: `${completed} completed` },
+      { status: 'in_progress', color: STATUS_COLORS.in_progress, count: inProgress, label: `${inProgress} in progress` },
+    ].filter(chip => chip.count > 0)
+  }, [entries])
+
   return (
     <>
       {/* One merged row: identity left, every browsing control right. The
@@ -865,26 +903,48 @@ export default function EntryList({
       <div className={`vault-header${showAdd ? ' has-drawer' : ''}${collapsed ? ' is-collapsed' : ''}`}>
         <div className="vault-header-identity">
           <h1 className="vault-header-title">The Vault</h1>
-          {countLine && <span className="vault-header-count">{countLine}</span>}
+          {/* Counts are over the whole vault (not the filtered view), and
+              double as shortcuts: completed / in progress toggle the Status
+              filter. The titles chip has no filter of its own, so it clears
+              Status instead. Zero counts are hidden, as before. */}
+          {countChips.length > 0 && (
+            <span className="vault-header-count">
+              {countChips.map(chip => (
+                <button
+                  key={chip.label}
+                  onClick={() => setStatusFilter(prev => (chip.status && prev !== chip.status ? chip.status : ''))}
+                  className={`count-chip cursor-pointer${chip.status && statusFilter === chip.status ? ' is-active' : ''}`}
+                  aria-pressed={chip.status ? statusFilter === chip.status : undefined}
+                >
+                  <span className="count-chip-dot" style={{ background: chip.color }} />
+                  {chip.label}
+                </button>
+              ))}
+            </span>
+          )}
         </div>
 
         <div className="vault-header-controls">
-          <Dropdown
-            ariaLabel="Filter by status"
-            icon={<StatusIcon />}
-            options={[{ value: '', label: 'Status' }, ...STATUS_FILTER_OPTIONS]}
-            value={statusFilter}
-            onChange={setStatusFilter}
-          />
+          <FilterControl active={statusFilter !== ''} onClear={() => setStatusFilter('')} label="status">
+            <Dropdown
+              ariaLabel="Filter by status"
+              icon={<StatusIcon />}
+              options={[{ value: '', label: 'Status' }, ...STATUS_FILTER_OPTIONS]}
+              value={statusFilter}
+              onChange={setStatusFilter}
+            />
+          </FilterControl>
 
           {genres.length > 0 && (
-            <Dropdown
-              ariaLabel="Filter by genre"
-              icon={<GenreIcon />}
-              options={[{ value: '', label: 'Genre' }, ...genres.map(g => ({ value: g, label: g }))]}
-              value={genreFilter}
-              onChange={setGenreFilter}
-            />
+            <FilterControl active={genreFilter !== ''} onClear={() => setGenreFilter('')} label="genre">
+              <Dropdown
+                ariaLabel="Filter by genre"
+                icon={<GenreIcon />}
+                options={[{ value: '', label: 'Genre' }, ...genres.map(g => ({ value: g, label: g }))]}
+                value={genreFilter}
+                onChange={setGenreFilter}
+              />
+            </FilterControl>
           )}
 
           <div className="flex gap-2 items-center">

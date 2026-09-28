@@ -30,17 +30,10 @@ function App() {
   const [showAdd, setShowAdd] = useState(false)
   const [headerCollapsed, setHeaderCollapsed] = useState(false)
   const mainRef = useRef<HTMLElement>(null)
-  // Lifted out of EntryList so the vault header can show live counts;
+  // Lifted out of EntryList so the backdrop can build its poster wall;
   // EntryList still does the fetching and mutating through the setter
   const [entries, setEntries] = useState<EditableEntry[]>([])
 
-  const completedCount  = entries.filter(e => e.status === 'completed').length
-  const inProgressCount = entries.filter(e => e.status === 'in_progress').length
-  const countLine = [
-    entries.length > 0 && `${entries.length} ${entries.length === 1 ? 'title' : 'titles'}`,
-    completedCount > 0 && `${completedCount} completed`,
-    inProgressCount > 0 && `${inProgressCount} in progress`,
-  ].filter(Boolean).join(' · ')
   // The backdrop's poster wall is built from the user's own posters
   const backdropPosters = useMemo(
     () => entries.flatMap(e => (e.poster_url ? [e.poster_url] : [])),
@@ -113,47 +106,43 @@ function App() {
       />
       <div className="flex h-full flex-col text-[#F2EFE9] vault-page">
         <QuietWallBackground posters={backdropPosters} scrollRef={mainRef} />
-        <header
-          className="flex items-center justify-between px-6 py-4"
-          style={{
-            borderBottom: '1px solid var(--color-border)',
-            background: 'rgba(8, 8, 8, 0.6)',
-            backdropFilter: 'blur(4px)',
-          }}
-        >
-          <div style={{ display: 'flex', gap: 6 }}>
-            {(['library', 'stats'] as const).map(view => (
-              <button
-                key={view}
-                onClick={() => {
-                  setActiveView(view)
-                  // The two views share one scroll container. Switching swaps
-                  // the content out from under it, so reset both the position
-                  // and the collapse state rather than landing in the new view
-                  // mid-scroll with a header collapsed for a page that's gone.
-                  mainRef.current?.scrollTo({ top: 0 })
-                  setHeaderCollapsed(false)
-                }}
-                className="text-base cursor-pointer"
-                style={{
-                  padding: '7px 20px',
-                  borderRadius: 6,
-                  border: 'none',
-                  fontWeight: activeView === view ? 600 : 500,
-                  letterSpacing: '0.01em',
-                  color: activeView === view ? '#080808' : 'var(--color-text)',
-                  backgroundColor: activeView === view ? 'var(--color-accent)' : 'transparent',
-                  transition: 'background-color 0.15s, color 0.15s',
-                }}
-              >
-                {view === 'library' ? 'Library' : 'Stats'}
-              </button>
-            ))}
+        <header className="app-header">
+          <div className="app-header-left">
+            <span className="app-wordmark">A<span className="app-wordmark-sc">RCHIVUM.</span></span>
+            {/* One segmented control. The rose pill is a single element that
+                slides between the two buttons (left 4 → 100), so switching
+                reads as one thing moving rather than two buttons swapping
+                colours. The buttons sit above it and only change text colour. */}
+            <div className="view-switch" role="tablist" aria-label="View">
+              <span
+                aria-hidden="true"
+                className="view-switch-indicator"
+                style={{ left: activeView === 'library' ? 4 : 100 }}
+              />
+              {(['library', 'stats'] as const).map(view => (
+                <button
+                  key={view}
+                  role="tab"
+                  aria-selected={activeView === view}
+                  onClick={() => {
+                    setActiveView(view)
+                    // The two views share one scroll container. Switching swaps
+                    // the content out from under it, so reset both the position
+                    // and the collapse state rather than landing in the new view
+                    // mid-scroll with a header collapsed for a page that's gone.
+                    mainRef.current?.scrollTo({ top: 0 })
+                    setHeaderCollapsed(false)
+                  }}
+                  className={`view-switch-btn cursor-pointer${activeView === view ? ' is-active' : ''}`}
+                >
+                  {view === 'library' ? 'Library' : 'Stats'}
+                </button>
+              ))}
+            </div>
           </div>
           <button
             onClick={() => supabase.auth.signOut()}
-            className="text-sm cursor-pointer hover:opacity-80"
-            style={{ color: 'var(--color-text-muted)' }}
+            className="app-logout cursor-pointer"
           >
             Log out
           </button>
@@ -181,7 +170,6 @@ function App() {
                 refreshKey={refreshKey}
                 entries={entries}
                 setEntries={setEntries}
-                countLine={countLine}
                 showAdd={showAdd}
                 onToggleAdd={handleToggleAdd}
                 collapsed={headerCollapsed}
