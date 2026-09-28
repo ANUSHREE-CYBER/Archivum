@@ -2,6 +2,9 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { supabase } from '../lib/supabase'
 import { useModalFocus } from '../lib/useModalFocus'
+import { useTilt } from '../lib/useTilt'
+import { TYPE_DOT_COLORS } from '../lib/typeColors'
+import CoverFallback from './CoverFallback'
 
 const TYPE_OPTIONS = [
   { value: 'movie',   label: 'Movie' },
@@ -47,6 +50,9 @@ export default function ManualEntryModal({ userId, onClose, onSaved }: Props) {
   const [genresInput, setGenresInput] = useState('')
   const [saving,      setSaving]      = useState(false)
   const [error,       setError]       = useState('')
+  // Cleared on every edit of the URL, so fixing a typo'd URL retries the image
+  const [previewError, setPreviewError] = useState(false)
+  const { tiltRef, glareRef, onMouseMove, onMouseLeave } = useTilt({ max: 7, lift: 'translateZ(20px)', perspective: 900, glare: 0.28 })
   const backdropRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const headingId = useId()
@@ -90,16 +96,20 @@ export default function ManualEntryModal({ userId, onClose, onSaved }: Props) {
       setError(err.message)
       toast.error(err.message, { style: { border: '1px solid var(--color-danger)' } })
     } else {
-      toast.success(`Added ${title.trim()} to your library`)
+      toast.success(`${title.trim()} added to your archive`)
       onSaved()
       onClose()
     }
   }
 
+  const showFormat = type !== 'book' && !COMIC_TYPES.has(type)
+  const formatIndex = Math.max(0, FORMAT_OPTIONS.findIndex(o => o.value === format))
+  const previewUrl = posterUrl.trim()
+
   return (
     <div
       ref={backdropRef}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center p-6"
       style={{ background: 'rgba(0,0,0,0.4)' }}
       onClick={e => { if (e.target === backdropRef.current) onClose() }}
     >
@@ -108,156 +118,161 @@ export default function ManualEntryModal({ userId, onClose, onSaved }: Props) {
         role="dialog"
         aria-modal="true"
         aria-labelledby={headingId}
-        className="flex flex-col gap-4 rounded-lg w-full max-w-sm p-6"
-        style={{
-          // Frosted glass, same recipe as the Add drawer. The scrim above is
-          // 0.4 (not the drawer-less 0.6 default) so enough backdrop light
-          // reaches the glass for the blur to actually read as frosted.
-          background: 'rgba(17, 17, 17, 0.85)',
-          backdropFilter: 'blur(12px)',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
-        }}
+        className="glass-modal manual-modal"
       >
-        <h2 id={headingId} className="font-semibold" style={{ color: 'var(--color-text)' }}>
-          Add manually
-        </h2>
+        <div className="manual-modal-form">
+          <h2 id={headingId} className="manual-modal-title">Add manually</h2>
 
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
-            Title <span style={{ color: 'var(--color-danger)' }}>*</span>
-          </label>
-          <input
-            type="text"
-            value={title}
-            onChange={e => setTitle(e.target.value)}
-            className="vault-input rounded px-3 py-2 text-sm"
-          />
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
-            Type
-          </label>
-          <select
-            value={type}
-            onChange={e => {
-              setType(e.target.value)
-              // A format picked for the previous type (e.g. Comic for a manga)
-              // rarely makes sense for the next one — start over.
-              setFormat('')
-            }}
-            className="vault-input rounded px-3 py-2 text-sm"
-          >
-            {TYPE_OPTIONS.map(o => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
-        </div>
-
-        {type !== 'book' && !COMIC_TYPES.has(type) && (
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
-              Format{' '}
-              <span className="font-normal" style={{ color: 'var(--color-text-muted)' }}>
-                (optional — cross-lists into Movies / TV)
-              </span>
-            </label>
-            <select
-              value={format}
-              onChange={e => setFormat(e.target.value)}
-              className="vault-input rounded px-3 py-2 text-sm"
-            >
-              {FORMAT_OPTIONS.map(o => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        {type === 'book' && (
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
-              Author
-            </label>
+          <label className="modal-field">
+            <span>Title <span style={{ color: 'var(--color-danger)' }}>*</span></span>
             <input
               type="text"
-              value={author}
-              onChange={e => setAuthor(e.target.value)}
-              placeholder="e.g. Ursula K. Le Guin"
-              className="vault-input rounded px-3 py-2 text-sm"
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              placeholder="e.g. Rebecca"
+              className="vault-input modal-input"
             />
+          </label>
+
+          {/* Type — chips instead of a native <select> */}
+          <span className="modal-field-label" id={`${headingId}-type`}>Type</span>
+          <div className="manual-type-chips" role="radiogroup" aria-labelledby={`${headingId}-type`}>
+            {TYPE_OPTIONS.map(o => (
+              <button
+                key={o.value}
+                type="button"
+                role="radio"
+                aria-checked={type === o.value}
+                onClick={() => {
+                  setType(o.value)
+                  // A format picked for the previous type rarely makes sense
+                  // for the next one — start over.
+                  setFormat('')
+                }}
+                className={`type-chip cursor-pointer${type === o.value ? ' is-on' : ''}`}
+              >
+                <span className="type-chip-dot" style={{ background: TYPE_DOT_COLORS[o.value] }} />
+                {o.label}
+              </button>
+            ))}
           </div>
-        )}
 
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
-            Year
+          {showFormat && (
+            <>
+              <span className="modal-field-label" id={`${headingId}-format`}>
+                Format <span style={{ color: '#6B6660' }}>(optional — cross-lists into Movies / TV)</span>
+              </span>
+              {/* Segmented control: one rose pill slides under the three
+                  72px segments (left = 3 + index · 72) */}
+              <div className="format-switch" role="radiogroup" aria-labelledby={`${headingId}-format`}>
+                <span
+                  aria-hidden="true"
+                  className="format-switch-indicator"
+                  style={{ left: 3 + formatIndex * 72 }}
+                />
+                {FORMAT_OPTIONS.map(o => (
+                  <button
+                    key={o.value || 'none'}
+                    type="button"
+                    role="radio"
+                    aria-checked={format === o.value}
+                    aria-label={o.value ? o.label : 'No format'}
+                    onClick={() => setFormat(o.value)}
+                    className={`format-switch-btn cursor-pointer${format === o.value ? ' is-on' : ''}`}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+
+          {type === 'book' && (
+            <label className="modal-field">
+              Author
+              <input
+                type="text"
+                value={author}
+                onChange={e => setAuthor(e.target.value)}
+                placeholder="e.g. Ursula K. Le Guin"
+                className="vault-input modal-input"
+              />
+            </label>
+          )}
+
+          <div className="manual-modal-pair">
+            <label className="modal-field">
+              Year
+              <input
+                type="number"
+                value={year}
+                onChange={e => setYear(e.target.value)}
+                placeholder="2023"
+                className="vault-input modal-input"
+              />
+            </label>
+            <label className="modal-field">
+              Poster URL
+              <input
+                type="url"
+                value={posterUrl}
+                onChange={e => {
+                  setPosterUrl(e.target.value)
+                  setPreviewError(false)
+                }}
+                placeholder="https://…"
+                className="vault-input modal-input"
+              />
+            </label>
+          </div>
+
+          <label className="modal-field">
+            <span>Genres <span style={{ color: '#6B6660' }}>(comma-separated)</span></span>
+            <input
+              type="text"
+              value={genresInput}
+              onChange={e => setGenresInput(e.target.value)}
+              placeholder="Drama, Romance"
+              className="vault-input modal-input"
+            />
           </label>
-          <input
-            type="number"
-            value={year}
-            onChange={e => setYear(e.target.value)}
-            placeholder="e.g. 2023"
-            className="vault-input rounded px-3 py-2 text-sm"
-          />
+
+          {error && (
+            <p className="text-sm" style={{ color: 'var(--color-danger)' }}>{error}</p>
+          )}
+
+          <div className="flex gap-2 justify-end" style={{ marginTop: 4 }}>
+            <button type="button" onClick={onClose} className="modal-btn cursor-pointer">
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving}
+              className="modal-btn is-primary cursor-pointer disabled:opacity-50"
+            >
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+          </div>
         </div>
 
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
-            Poster URL
-          </label>
-          <input
-            type="url"
-            value={posterUrl}
-            onChange={e => setPosterUrl(e.target.value)}
-            placeholder="https://…"
-            className="vault-input rounded px-3 py-2 text-sm"
-          />
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
-            Genres{' '}
-            <span className="font-normal" style={{ color: 'var(--color-text-muted)' }}>
-              (comma-separated)
-            </span>
-          </label>
-          <input
-            type="text"
-            value={genresInput}
-            onChange={e => setGenresInput(e.target.value)}
-            placeholder="e.g. Drama, Romance"
-            className="vault-input rounded px-3 py-2 text-sm"
-          />
-        </div>
-
-        {error && (
-          <p className="text-sm" style={{ color: 'var(--color-danger)' }}>{error}</p>
-        )}
-
-        <div className="flex gap-3 justify-end">
-          <button
-            onClick={onClose}
-            className="px-4 py-1.5 rounded text-sm cursor-pointer hover:opacity-80"
-            style={{
-              background: 'var(--color-surface)',
-              border: '1px solid var(--color-border)',
-              color: 'var(--color-text)',
-            }}
+        {/* Live preview: the card as it will look, updating as you type */}
+        <div className="manual-modal-preview" aria-hidden="true">
+          <div
+            ref={tiltRef}
+            className="manual-preview-card"
+            onMouseMove={onMouseMove}
+            onMouseLeave={onMouseLeave}
           >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="px-4 py-1.5 rounded text-sm font-semibold cursor-pointer hover:opacity-90 disabled:opacity-50"
-            style={{
-              background: 'var(--color-accent)',
-              color: 'var(--color-background)',
-            }}
-          >
-            {saving ? 'Saving…' : 'Save'}
-          </button>
+            {previewUrl && !previewError ? (
+              <img src={previewUrl} alt="" onError={() => setPreviewError(true)} />
+            ) : (
+              <CoverFallback type={type} title={title.trim() || 'Untitled'} year={year || null} />
+            )}
+            <span className="manual-preview-dot" style={{ background: TYPE_DOT_COLORS[type] }} />
+            <div ref={glareRef} className="card-glare" />
+          </div>
+          <span className="manual-preview-label">Live preview</span>
         </div>
       </div>
     </div>

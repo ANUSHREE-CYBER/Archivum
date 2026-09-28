@@ -1,8 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { supabase } from '../lib/supabase'
 import { sharpPoster } from '../lib/utils'
 import { useModalFocus } from '../lib/useModalFocus'
+import { STATUS_COLORS, STATUS_TEXT_COLORS } from '../lib/statusColors'
+import { TYPE_DOT_COLORS, TYPE_LABELS } from '../lib/typeColors'
+import CoverFallback from './CoverFallback'
 
 export const STATUS_OPTIONS = [
   { value: 'plan_to_watch', label: 'Plan to Watch' },
@@ -50,18 +53,16 @@ function NumField({ label, value, onChange }: {
   onChange: (v: number | null) => void
 }) {
   return (
-    <div className="flex flex-col gap-1">
-      <label className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
-        {label}
-      </label>
+    <label className="modal-field">
+      {label}
       <input
         type="number"
         min={0}
         value={value ?? ''}
         onChange={e => onChange(e.target.value === '' ? null : Number(e.target.value))}
-        className="vault-input rounded px-3 py-2 text-sm"
+        className="vault-input modal-input"
       />
-    </div>
+    </label>
   )
 }
 
@@ -76,6 +77,12 @@ export default function EntryEditModal({ entry, onClose, onSaved, onDeleted }: P
   const [totalPages, setTotalPages]   = useState<number | null>(typeof meta.totalPages  === 'number' ? meta.totalPages  : null)
   const [volume, setVolume]           = useState<number | null>(typeof meta.volume      === 'number' ? meta.volume      : null)
   const [chapter, setChapter]         = useState<number | null>(typeof meta.chapter     === 'number' ? meta.chapter     : null)
+  // Totals for serials and comics, so their progress bars (and the Continue
+  // stage's "completes at total") work the way books' already did
+  const [totalEpisodes, setTotalEpisodes] = useState<number | null>(typeof meta.totalEpisodes === 'number' ? meta.totalEpisodes : null)
+  const [totalChapters, setTotalChapters] = useState<number | null>(typeof meta.totalChapters === 'number' ? meta.totalChapters : null)
+  const [hoverRating, setHoverRating] = useState<number | null>(null)
+  const [posterError, setPosterError] = useState(false)
   const [saving, setSaving]           = useState(false)
   const [error, setError]             = useState('')
   const [confirmingDelete, setConfirmingDelete] = useState(false)
@@ -83,6 +90,7 @@ export default function EntryEditModal({ entry, onClose, onSaved, onDeleted }: P
   const [deleteError, setDeleteError]           = useState('')
   const backdropRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
+  const ids = useId()
   useModalFocus(panelRef)
 
   const { type } = entry
@@ -105,9 +113,9 @@ export default function EntryEditModal({ entry, onClose, onSaved, onDeleted }: P
     setError('')
 
     let progressMeta: Record<string, unknown> = {}
-    if (isSerial) progressMeta = { season, episode }
+    if (isSerial) progressMeta = { season, episode, totalEpisodes }
     else if (isBook)  progressMeta = { currentPage, totalPages }
-    else if (isPrint) progressMeta = { volume, chapter }
+    else if (isPrint) progressMeta = { volume, chapter, totalChapters }
 
     // Strip nulls so we never overwrite an existing value with null
     const cleanProgress = Object.fromEntries(
@@ -164,10 +172,35 @@ export default function EntryEditModal({ entry, onClose, onSaved, onDeleted }: P
     }
   }
 
+  // Progress for the pill row + bar, read from the live form state so +1 and
+  // the number fields below stay in step with it
+  const progressCurrent = isSerial ? episode : isBook ? currentPage : isPrint ? chapter : null
+  const progressTotal   = isSerial ? totalEpisodes : isBook ? totalPages : isPrint ? totalChapters : null
+  const progressUnit    = isSerial ? 'Episode' : isBook ? 'Page' : 'Chapter'
+  const hasProgress     = isSerial || isBook || isPrint
+  const progressPct     = progressCurrent && progressTotal ? Math.min(100, (progressCurrent / progressTotal) * 100) : null
+
+  // +1 on the current episode / page / chapter. Reaching a known total clamps
+  // to it and flips the status chip to Completed — the same rule as the
+  // Continue stage's +1. Nothing is written until Done.
+  function bump() {
+    const setCurrent = isSerial ? setEpisode : isBook ? setCurrentPage : setChapter
+    let next = (progressCurrent ?? 0) + 1
+    if (progressTotal && next >= progressTotal) {
+      next = progressTotal
+      setStatus('completed')
+    }
+    setCurrent(next)
+  }
+
+  const genres = entry.genres?.slice(0, 3).join(', ')
+  const metaLine = [entry.year, genres, author].filter(Boolean).join(' · ')
+  const shownRating = hoverRating ?? rating
+
   return (
     <div
       ref={backdropRef}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center p-6"
       style={{ background: 'rgba(0,0,0,0.4)' }}
       onClick={e => { if (e.target === backdropRef.current) onClose() }}
     >
@@ -176,182 +209,191 @@ export default function EntryEditModal({ entry, onClose, onSaved, onDeleted }: P
         role="dialog"
         aria-modal="true"
         aria-label={`Edit ${entry.title}`}
-        className="flex flex-col gap-5 rounded-lg w-full max-w-sm p-6"
-        style={{
-          // Frosted glass, same recipe as the Add drawer. The scrim above is
-          // 0.4 (not the drawer-less 0.6 default) so enough backdrop light
-          // reaches the glass for the blur to actually read as frosted.
-          background: 'rgba(17, 17, 17, 0.85)',
-          backdropFilter: 'blur(12px)',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
-        }}
+        className="glass-modal detail-modal"
       >
-        {/* header */}
-        <div className="flex gap-4 items-start">
-          {entry.poster_url ? (
-            <img
-              src={sharpPoster(entry.poster_url)!}
-              alt={entry.title}
-              className="w-14 rounded object-cover flex-shrink-0"
-              style={{ aspectRatio: '2/3' }}
-            />
-          ) : (
-            <div
-              className="w-14 rounded flex-shrink-0"
-              style={{ aspectRatio: '2/3', background: 'var(--color-surface)' }}
-            />
-          )}
-          <div className="flex flex-col gap-1 pt-1">
-            <span className="font-semibold leading-tight" style={{ color: 'var(--color-text)' }}>
-              {entry.title}
-            </span>
-            {entry.year && (
-              <span className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                {entry.year}
-              </span>
-            )}
-            {author && (
-              <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                {author}
-              </span>
+        {/* the entry's own poster, blurred into the glass */}
+        {entry.poster_url && (
+          <div
+            aria-hidden="true"
+            className="detail-modal-bg"
+            style={{ backgroundImage: `url("${entry.poster_url}")` }}
+          />
+        )}
+
+        <div className="detail-modal-poster">
+          <div className="detail-modal-poster-frame">
+            {entry.poster_url && !posterError ? (
+              <img
+                src={sharpPoster(entry.poster_url)!}
+                alt={entry.title}
+                onError={() => setPosterError(true)}
+              />
+            ) : (
+              <CoverFallback type={type} title={entry.title} year={entry.year} size="lg" />
             )}
           </div>
         </div>
 
-        {/* status */}
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
-            Status
-          </label>
-          <select
-            value={status}
-            onChange={e => setStatus(e.target.value)}
-            className="vault-input rounded px-3 py-2 text-sm"
-          >
-            {STATUS_OPTIONS.map(opt => (
-              <option key={opt.value} value={opt.value}>{statusLabel(opt.value, entry.type)}</option>
-            ))}
-          </select>
-        </div>
-
-        {/* rating */}
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
-            Rating
-          </label>
-          <div className="flex gap-1.5 flex-wrap">
-            {Array.from({ length: 10 }, (_, i) => i + 1).map(n => (
-              <button
-                key={n}
-                onClick={() => setRating(rating === n ? null : n)}
-                className="w-8 h-8 rounded text-sm font-medium cursor-pointer"
-                style={{
-                  background: rating === n ? 'var(--color-accent)' : 'var(--color-surface)',
-                  color: rating === n ? 'var(--color-background)' : 'var(--color-text)',
-                  border: '1px solid var(--color-border)',
-                }}
-              >
-                {n}
-              </button>
-            ))}
+        <div className="detail-modal-body">
+          <span className="detail-modal-eyebrow">
+            <span className="detail-modal-dot" style={{ background: TYPE_DOT_COLORS[type] ?? '#6B6660' }} />
+            {TYPE_LABELS[type] ?? type}
+          </span>
+          <h2 className="detail-modal-title">{entry.title}</h2>
+          {metaLine && <span className="detail-modal-meta">{metaLine}</span>}
+          <div className="detail-modal-rule" aria-hidden="true">
+            <span /><span className="detail-modal-diamond">◆</span><span />
           </div>
-        </div>
 
-        {/* progress fields */}
-        {isSerial && (
-          <div className="grid grid-cols-2 gap-3">
-            <NumField label="Current Season"  value={season}  onChange={setSeason} />
-            <NumField label="Current Episode" value={episode} onChange={setEpisode} />
-          </div>
-        )}
-        {isBook && (
-          <div className="grid grid-cols-2 gap-3">
-            <NumField label="Current Page" value={currentPage} onChange={setCurrentPage} />
-            <NumField label="Total Pages"  value={totalPages}  onChange={setTotalPages} />
-          </div>
-        )}
-        {isPrint && (
-          <div className="grid grid-cols-2 gap-3">
-            <NumField label="Current Volume"  value={volume}  onChange={setVolume} />
-            <NumField label="Current Chapter" value={chapter} onChange={setChapter} />
-          </div>
-        )}
-
-        {error && (
-          <p className="text-sm" style={{ color: 'var(--color-danger)' }}>{error}</p>
-        )}
-
-        {/* actions */}
-        <div className="flex gap-3 justify-end">
-          <button
-            onClick={onClose}
-            className="px-4 py-1.5 rounded text-sm cursor-pointer hover:opacity-80"
-            style={{
-              background: 'var(--color-surface)',
-              border: '1px solid var(--color-border)',
-              color: 'var(--color-text)',
-            }}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="px-4 py-1.5 rounded text-sm font-semibold cursor-pointer hover:opacity-90 disabled:opacity-50"
-            style={{
-              background: 'var(--color-accent)',
-              color: 'var(--color-background)',
-            }}
-          >
-            {saving ? 'Saving…' : 'Save'}
-          </button>
-        </div>
-
-        {/* delete — separated from the primary actions so it isn't misclicked */}
-        <div className="pt-4 flex flex-col gap-2" style={{ borderTop: '1px solid var(--color-border)' }}>
-          {confirmingDelete ? (
-            <>
-              <p className="text-sm" style={{ color: 'var(--color-danger)' }}>
-                Delete "{entry.title}"? This can't be undone.
-              </p>
-              {deleteError && (
-                <p className="text-sm" style={{ color: 'var(--color-danger)' }}>{deleteError}</p>
-              )}
-              <div className="flex gap-3 justify-end">
+          {/* status — chips, replacing the last native <select> */}
+          <span className="detail-modal-label" id={`${ids}-status`}>Status</span>
+          <div className="detail-modal-chips" role="radiogroup" aria-labelledby={`${ids}-status`}>
+            {STATUS_OPTIONS.map(opt => {
+              const on = status === opt.value
+              const color = STATUS_COLORS[opt.value]
+              return (
                 <button
-                  onClick={() => setConfirmingDelete(false)}
-                  disabled={deleting}
-                  className="px-4 py-1.5 rounded text-sm cursor-pointer hover:opacity-80 disabled:opacity-50"
-                  style={{
-                    background: 'var(--color-surface)',
-                    border: '1px solid var(--color-border)',
-                    color: 'var(--color-text)',
-                  }}
+                  key={opt.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  onClick={() => setStatus(opt.value)}
+                  className={`status-chip cursor-pointer${on ? ' is-on' : ''}`}
+                  style={on ? {
+                    background: color,
+                    borderColor: color,
+                    color: STATUS_TEXT_COLORS[opt.value],
+                    boxShadow: `0 8px 20px -8px ${color}`,
+                  } : undefined}
                 >
-                  Cancel
+                  {statusLabel(opt.value, type)}
                 </button>
+              )
+            })}
+          </div>
+
+          {/* rating — 10 stars; clicking the current rating clears it */}
+          <span className="detail-modal-label" id={`${ids}-rating`}>
+            Rating · {rating ? `${rating} / 10` : 'unrated'}
+          </span>
+          <div
+            className="detail-modal-stars"
+            role="radiogroup"
+            aria-labelledby={`${ids}-rating`}
+            onMouseLeave={() => setHoverRating(null)}
+          >
+            {Array.from({ length: 10 }, (_, i) => i + 1).map(n => {
+              const lit = shownRating !== null && n <= shownRating
+              return (
                 <button
-                  onClick={handleDelete}
-                  disabled={deleting}
-                  className="px-4 py-1.5 rounded text-sm font-semibold cursor-pointer hover:opacity-90 disabled:opacity-50"
-                  style={{
-                    background: 'var(--color-danger)',
-                    color: '#F2EFE9',
-                  }}
+                  key={n}
+                  type="button"
+                  role="radio"
+                  aria-checked={rating === n}
+                  aria-label={`${n} of 10`}
+                  onClick={() => setRating(rating === n ? null : n)}
+                  onMouseEnter={() => setHoverRating(n)}
+                  className={`rating-star cursor-pointer${lit ? ' is-lit' : ''}`}
+                  style={{ transitionDelay: `${(n - 1) * 25}ms` }}
                 >
-                  {deleting ? 'Deleting…' : 'Delete'}
+                  ★
                 </button>
+              )
+            })}
+          </div>
+
+          {hasProgress && (
+            <div className="detail-modal-progress">
+              <div className="detail-modal-progress-row">
+                <span>
+                  {progressCurrent
+                    ? `${progressUnit} ${progressCurrent}${progressTotal ? ` of ${progressTotal}` : ''}`
+                    : 'No progress logged yet'}
+                </span>
+                <button type="button" onClick={bump} className="detail-modal-bump cursor-pointer">+1</button>
               </div>
-            </>
-          ) : (
-            <button
-              onClick={() => setConfirmingDelete(true)}
-              className="text-sm self-start cursor-pointer hover:opacity-80"
-              style={{ background: 'none', border: 'none', padding: 0, color: 'var(--color-danger)' }}
-            >
-              🗑 Delete
-            </button>
+              {progressPct !== null && (
+                <div className="cont-progress-track">
+                  <div className="cont-progress-bar" style={{ width: `${progressPct}%` }} />
+                </div>
+              )}
+              <div className="detail-modal-fields">
+                {isSerial && (
+                  <>
+                    <NumField label="Season"         value={season}        onChange={setSeason} />
+                    <NumField label="Episode"        value={episode}       onChange={setEpisode} />
+                    <NumField label="Total episodes" value={totalEpisodes} onChange={setTotalEpisodes} />
+                  </>
+                )}
+                {isBook && (
+                  <>
+                    <NumField label="Current page" value={currentPage} onChange={setCurrentPage} />
+                    <NumField label="Total pages"  value={totalPages}  onChange={setTotalPages} />
+                  </>
+                )}
+                {isPrint && (
+                  <>
+                    <NumField label="Volume"         value={volume}        onChange={setVolume} />
+                    <NumField label="Chapter"        value={chapter}       onChange={setChapter} />
+                    <NumField label="Total chapters" value={totalChapters} onChange={setTotalChapters} />
+                  </>
+                )}
+              </div>
+            </div>
           )}
+
+          {error && (
+            <p className="text-sm" style={{ color: 'var(--color-danger)' }}>{error}</p>
+          )}
+
+          <div className="detail-modal-footer">
+            {/* delete — kept apart from Done so it isn't misclicked */}
+            {confirmingDelete ? (
+              <div className="detail-modal-confirm">
+                <span>Delete "{entry.title}"? This can't be undone.</span>
+                {deleteError && <span>{deleteError}</span>}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setConfirmingDelete(false)}
+                    disabled={deleting}
+                    className="modal-btn cursor-pointer disabled:opacity-50"
+                  >
+                    Keep
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDelete}
+                    disabled={deleting}
+                    className="modal-btn is-danger cursor-pointer disabled:opacity-50"
+                  >
+                    {deleting ? 'Deleting…' : 'Delete'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmingDelete(true)}
+                className="detail-modal-delete cursor-pointer"
+              >
+                Delete
+              </button>
+            )}
+            <div className="flex gap-2 items-center">
+              <button type="button" onClick={onClose} className="detail-modal-cancel cursor-pointer">
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                className="detail-modal-done cursor-pointer disabled:opacity-50"
+              >
+                {saving ? 'Saving…' : 'Done'}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
