@@ -9,6 +9,9 @@ import type { Tab } from './MediaSearch'
 import Dropdown from './Dropdown'
 import { STATUS_COLORS, STATUS_TEXT_COLORS } from '../lib/statusColors'
 import { TYPE_DOT_COLORS, TYPE_LABELS } from '../lib/typeColors'
+import { progressKeys, readProgress } from '../lib/progress'
+import ContinueStage from './ContinueStage'
+import CoverFallback from './CoverFallback'
 import { sharpPoster } from '../lib/utils'
 
 // plan_to_watch/in_progress show combined labels in the filter since it covers all types
@@ -216,30 +219,12 @@ function FetchErrorBanner({ message, onRetry }: { message: string; onRetry: () =
 }
 
 // Progress toward completion for in_progress entries, as 0–100, or null when it
-// can't be computed. Each medium pairs a "current" metadata field with a "total":
-// books store currentPage/totalPages (both editable in the modal today), while
-// serials (episode/totalEpisodes) and manga/manhwa (chapter/totalChapters) only
-// gain a bar once a total is present in metadata — no total, no bar, per spec.
+// can't be computed (no current + total pair in metadata — no total, no bar).
+// Which fields hold it per medium lives in lib/progress.ts, shared with the
+// Continue stage and the edit modal.
 function progressPercent(entry: EditableEntry): number | null {
   if (entry.status !== 'in_progress') return null
-  const meta = (entry.metadata ?? {}) as Record<string, unknown>
-  const num = (v: unknown) => (typeof v === 'number' && v > 0 ? v : null)
-
-  let current: number | null
-  let total: number | null
-  if (entry.type === 'book') {
-    current = num(meta.currentPage)
-    total   = num(meta.totalPages)
-  } else if (entry.type === 'manga' || entry.type === 'manhwa') {
-    current = num(meta.chapter)
-    total   = num(meta.totalChapters)
-  } else {
-    current = num(meta.episode)
-    total   = num(meta.totalEpisodes)
-  }
-
-  if (current === null || total === null) return null
-  return Math.min(100, (current / total) * 100)
+  return readProgress(entry)?.percent ?? null
 }
 
 // Entrance is plain CSS (transition + transition-delay), not Framer Motion —
@@ -394,21 +379,7 @@ function EntryCard({ entry, index, onClick, revealed = true, selectionMode, sele
             className="w-full h-full object-cover transition-[transform,filter] duration-300 ease-out group-hover:scale-105 group-hover:brightness-110"
           />
         ) : (
-          <div
-            className="w-full h-full flex items-center justify-center p-3 text-center"
-            style={{ background: 'linear-gradient(180deg, #171717 0%, #0c0c0c 100%)' }}
-          >
-            <span
-              className="leading-snug line-clamp-5"
-              style={{
-                fontFamily: "Georgia, 'Times New Roman', serif",
-                fontSize: 13,
-                color: 'var(--color-text-muted)',
-              }}
-            >
-              {entry.title}
-            </span>
-          </div>
+          <CoverFallback type={entry.type} title={entry.title} year={entry.year} />
         )}
         <span
           title={TYPE_LABELS[entry.type] ?? entry.type}
@@ -644,20 +615,11 @@ function SkeletonCard() {
   )
 }
 
-function SkeletonShelf() {
+// Placeholder with the Continue stage's footprint, so the page doesn't jump
+// when the real stage arrives
+function SkeletonStage() {
   return (
-    <div className="pb-4">
-      <h2 className="text-sm font-semibold px-6 mb-2" style={{ color: 'var(--color-text)' }}>
-        Continue
-      </h2>
-      <div className="flex gap-4 overflow-x-auto px-6 pb-2">
-        {Array.from({ length: 4 }, (_, i) => (
-          <div key={i} style={{ width: 150, flexShrink: 0 }}>
-            <div className="skeleton-shimmer rounded-xl w-full" style={{ aspectRatio: '2/3' }} />
-          </div>
-        ))}
-      </div>
-    </div>
+    <div className="skeleton-shimmer" style={{ margin: '8px 24px 34px', minHeight: 440, borderRadius: 18 }} />
   )
 }
 
@@ -758,10 +720,9 @@ export default function EntryList({
     [filtered]
   )
 
-  // Deliberately reads from `entries`, not `filtered`: the shelf has never
-  // been narrowed by the status/genre dropdowns, only by the (now removed)
-  // tab. Filtering it by status would be self-defeating anyway — picking any
-  // status other than "Watching / Reading" would empty the shelf.
+  // Reads from `entries`, not `filtered`. The Continue stage isn't narrowed
+  // by the filters — it's hidden entirely while any filter is set (see the
+  // render below), since a filtered view is a search, not a place to resume.
   const inProgress = useMemo(
     () => entries.filter(e => e.status === 'in_progress'),
     [entries]
@@ -803,6 +764,57 @@ export default function EntryList({
       })
     } else {
       toast.success(`Moved ${entry.title} to ${statusLabel(next, entry.type)}`)
+    }
+  }
+
+  // +1 episode / chapter / page from the Continue stage. Same checked update
+  // path as quickSetStatus: .select('id') so a zero-row update (deleted
+  // elsewhere, or RLS) is reported instead of silently "succeeding". Reaching
+  // the known total clamps to it and marks the entry completed, which drops
+  // it out of the stage. Without a total it just counts up.
+  const bumpingRef = useRef(false)
+  async function bumpProgress(entry: EditableEntry) {
+    const keys = progressKeys(entry.type)
+    if (!keys || bumpingRef.current) return
+    bumpingRef.current = true
+
+    const meta = (entry.metadata ?? {}) as Record<string, unknown>
+    const current = typeof meta[keys.current] === 'number' ? (meta[keys.current] as number) : 0
+    const total = typeof meta[keys.total] === 'number' && (meta[keys.total] as number) > 0
+      ? (meta[keys.total] as number)
+      : null
+    let next = current + 1
+    let status = entry.status
+    if (total !== null && next >= total) {
+      next = total
+      status = 'completed'
+    }
+    const metadata = { ...meta, [keys.current]: next }
+
+    const { data, error } = await supabase
+      .from('entries')
+      .update({ metadata, status })
+      .eq('id', entry.id)
+      .select('id')
+    bumpingRef.current = false
+
+    if (error) {
+      toast.error(error.message, { style: { border: '1px solid var(--color-danger)' } })
+      return
+    }
+    if ((data ?? []).length === 0) {
+      toast.error("Couldn't update progress — entry may have been removed", {
+        style: { border: '1px solid var(--color-danger)' },
+      })
+      setRetryTick(t => t + 1)
+      return
+    }
+
+    setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, metadata, status } : e))
+    if (status === 'completed') {
+      toast.success(`Marked ${entry.title} as Completed`, {
+        icon: <span style={{ color: 'var(--color-accent)', fontWeight: 700 }}>✓</span>,
+      })
     }
   }
 
@@ -997,7 +1009,7 @@ export default function EntryList({
 
       {loading && (
         <>
-          <SkeletonShelf />
+          <SkeletonStage />
           <div
             className="grid gap-6 px-6 pb-10"
             style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}
@@ -1013,24 +1025,8 @@ export default function EntryList({
           : <EmptyState />
       )}
 
-      {!loading && entries.length > 0 && inProgress.length > 0 && (
-        <div className="pb-4">
-          <h2 className="text-sm font-semibold px-6 mb-2" style={{ color: 'var(--color-text)' }}>
-            Continue
-          </h2>
-          <div className="flex gap-4 overflow-x-auto px-6 pb-1">
-            {inProgress.map((entry, i) => (
-              <div key={entry.id} style={{ width: 150, flexShrink: 0 }}>
-                <EntryCard
-                  entry={entry}
-                  index={i}
-                  onClick={() => setEditing(entry)}
-                  onQuickStatus={next => quickSetStatus(entry, next)}
-                />
-              </div>
-            ))}
-          </div>
-        </div>
+      {!loading && inProgress.length > 0 && !statusFilter && !genreFilter && (
+        <ContinueStage entries={inProgress} onOpen={setEditing} onBump={bumpProgress} />
       )}
 
       {/* Sections with nothing in them aren't rendered at all — no heading, no

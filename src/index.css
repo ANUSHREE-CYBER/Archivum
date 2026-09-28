@@ -695,6 +695,308 @@ button.search-result-pill:disabled {
   .add-tabs-line { transition: none; }
 }
 
+/* ── Designed no-poster cover (CoverFallback) ──────────────────────────────
+   Background (type-colour glow) and size-dependent gap/padding/title size
+   come from the component; everything else is here. */
+.cover-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-shadow: inset 0 0 0 1px rgba(242, 239, 233, 0.06), inset 8px 0 16px -8px rgba(0, 0, 0, 0.8);
+}
+.cover-fallback-type {
+  font-size: 9px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: #D8D2CA;
+  opacity: 0.7;
+}
+.cover-fallback-title {
+  font-family: Georgia, 'Times New Roman', serif;
+  line-height: 1.2;
+  color: #F2EFE9;
+  text-wrap: balance;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.cover-fallback-rule {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 60%;
+}
+.cover-fallback-rule > span:not(.cover-fallback-diamond) {
+  flex: 1;
+  height: 1px;
+  background: rgba(242, 239, 233, 0.2);
+}
+.cover-fallback-diamond {
+  color: #E4BCC3;
+  font-size: 6px;
+}
+.cover-fallback-year {
+  font-size: 10px;
+  color: #D8D2CA;
+  opacity: 0.7;
+}
+
+/* ── Continue stage ────────────────────────────────────────────────────────
+   Card with the front entry's poster blurred behind it, info column left,
+   3D fan of cards right. Everything that moves per frame (the fan's
+   parallax/float, the active dot's fill) is written by ContinueStage's rAF
+   loop; everything that moves on a change of front card is a transition. */
+.cont-stage {
+  position: relative;
+  margin: 8px 24px 34px;
+  border-radius: 18px;
+  border: 1px solid #1E1E1E;
+  overflow: hidden;
+  min-height: 440px;
+  background: rgba(10, 10, 10, 0.6);
+}
+.cont-bg {
+  position: absolute;
+  inset: -40px;
+  background-size: cover;
+  background-position: center;
+  filter: blur(40px) saturate(1.2);
+  transition: opacity 1.1s ease, transform 6s ease;
+  pointer-events: none;
+}
+.cont-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(8, 8, 8, 0.92) 0%, rgba(8, 8, 8, 0.7) 42%, rgba(8, 8, 8, 0.35) 100%);
+  pointer-events: none;
+}
+.cont-grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 24px;
+  align-items: center;
+  min-height: 440px;
+  padding: 36px clamp(24px, 4vw, 48px);
+}
+.cont-info {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.cont-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+.cont-eyebrow-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #B76E79;
+}
+.cont-title {
+  margin: 0;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-weight: 400;
+  font-size: clamp(30px, 3.6vw, 50px);
+  line-height: 1.08;
+  color: var(--color-text);
+  text-wrap: balance;
+}
+.cont-meta {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+.cont-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 360px;
+  margin-top: 6px;
+}
+.cont-progress-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #D8D2CA;
+}
+.cont-progress-pct {
+  color: #C98A93;
+}
+.cont-progress-track {
+  height: 3px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.cont-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #96555F, #E4BCC3);
+  transition: width 0.6s cubic-bezier(.2, .8, .2, 1);
+}
+.cont-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+}
+.cont-btn {
+  white-space: nowrap;
+  padding: 9px 18px;
+  border: 1px solid rgba(242, 239, 233, 0.18);
+  border-radius: 999px;
+  background: rgba(8, 8, 8, 0.4);
+  color: var(--color-text);
+  font-size: 12px;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+.cont-btn:hover {
+  border-color: #C98A93;
+}
+.cont-btn.is-primary {
+  border-color: #B76E79;
+  background: #B76E79;
+  color: #080808;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.cont-btn.is-primary:hover {
+  background: #C98A93;
+  border-color: #C98A93;
+}
+.cont-nav {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 14px;
+}
+.cont-arrow {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid rgba(242, 239, 233, 0.16);
+  background: rgba(8, 8, 8, 0.4);
+  color: #D8D2CA;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+.cont-arrow:hover {
+  border-color: #C98A93;
+  color: #E4BCC3;
+}
+.cont-dots {
+  display: flex;
+  gap: 6px;
+}
+.cont-dot {
+  width: 6px;
+  height: 6px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(242, 239, 233, 0.2);
+  transition: width 0.4s ease, background-color 0.4s ease;
+}
+.cont-dot.is-active {
+  width: 34px;
+  background: rgba(183, 110, 121, 0.35);
+}
+.cont-dot-fill {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: #E4BCC3;
+  border-radius: 999px;
+}
+
+/* The fan. Edge mask fades the side cards out rather than cutting them. */
+.cont-cards {
+  position: relative;
+  height: 380px;
+  perspective: 1100px;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, black 12%, black 88%, transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, black 12%, black 88%, transparent 100%);
+  touch-action: pan-y;
+  user-select: none;
+}
+.cont-spin {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+}
+.cont-card {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  width: 210px;
+  aspect-ratio: 2 / 3;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #1E1E1E;
+  background: #0C0C0C;
+  box-shadow: 0 30px 60px -24px rgba(0, 0, 0, 0.9);
+  -webkit-box-reflect: below 10px linear-gradient(transparent 74%, rgba(255, 255, 255, 0.16));
+  transition: transform 0.9s cubic-bezier(.2, .8, .2, 1), opacity 0.6s ease, filter 0.6s ease, box-shadow 0.6s ease;
+  outline: none;
+}
+.cont-card.is-front {
+  box-shadow: 0 40px 80px -24px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(183, 110, 121, 0.25);
+}
+.cont-card:focus-visible {
+  box-shadow: 0 0 0 2px #C98A93;
+}
+.cont-card img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+.cont-card-shine {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(105deg, transparent 35%, rgba(255, 240, 244, 0.28) 50%, transparent 65%);
+  transform: translateX(-120%);
+}
+.cont-card-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.15);
+}
+.cont-card-bar > div {
+  height: 100%;
+  background: #B76E79;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cont-bg,
+  .cont-card,
+  .cont-dot,
+  .cont-progress-bar {
+    transition: none;
+  }
+}
+
 .card-entering,
 .card-visible {
   transition: opacity 0.4s ease-out, transform 0.4s ease-out;
