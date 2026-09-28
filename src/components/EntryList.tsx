@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Dispatch, ReactNode, SetStateAction } from 'react'
-import { motion, AnimatePresence, useInView } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 import { supabase } from '../lib/supabase'
 import EntryEditModal, { STATUS_OPTIONS, statusLabel } from './EntryEditModal'
@@ -12,6 +12,7 @@ import { TYPE_DOT_COLORS, TYPE_LABELS } from '../lib/typeColors'
 import { progressKeys, readProgress } from '../lib/progress'
 import ContinueStage from './ContinueStage'
 import CoverFallback from './CoverFallback'
+import { useTilt } from '../lib/useTilt'
 import { sharpPoster } from '../lib/utils'
 
 // plan_to_watch/in_progress show combined labels in the filter since it covers all types
@@ -227,116 +228,57 @@ function progressPercent(entry: EditableEntry): number | null {
   return readProgress(entry)?.percent ?? null
 }
 
-// Entrance is plain CSS (transition + transition-delay), not Framer Motion —
-// mixing FM's own transform ownership (from `layout`) with FM-driven entrance
-// transforms was the source of the stagger timing bugs. Each card flips from
-// .card-entering to .card-visible one frame after its own mount, so persisting
-// cards (still mounted across a filter change) never replay the entrance —
-// only newly-mounted cards do. The per-card transition-delay is what cascades.
-//
-// Since the vault became one continuous page, that flip also waits on the
-// card's section being in view (EntryCard's `revealed` prop), so the cascade
-// belongs to whichever band you've just scrolled to instead of all seven
-// firing at once behind the fold. The index resets per section, so each one
-// cascades from its own first card.
-const CARD_STAGGER_STEP_MS = 40
-const CARD_STAGGER_CAP_MS = 500
-
-// 3D hover tilt. ±7° at the card edges — the hovered side lifts toward the
-// cursor, like the card is turning to face where you're looking from.
-// Evaluated once: tilt is meaningless without a real pointer, and this JS gate
-// matches the CSS `.card-tilt` media query (same one the quick actions use).
-const TILT_MAX_DEG = 7
-const FINE_POINTER = window.matchMedia('(hover: hover) and (pointer: fine)').matches
-
-function EntryCard({ entry, index, onClick, revealed = true, selectionMode, selected, onToggleSelect, onQuickStatus }: {
+// A card is three stacked layers, each owning exactly one transform:
+//   1. .shelf-reveal — the one-time 3D entrance (rises out of the shelf),
+//      toggled by its section's IntersectionObserver. Its transition carries
+//      a per-card delay, so nothing else may transform this element.
+//   2. .card-tilt — the hover tilt + lift, written per frame by useTilt.
+//   3. the Framer Motion `layout` card — FM owns and overwrites its inline
+//      transform for layout/exit animations.
+// Merging any two of these makes one clobber the other (a delayed tilt, a
+// tilt wiped by FM, a reveal that replays on layout) — keep them separate.
+function EntryCard({ entry, onClick, registerReveal, selectionMode, selected, onToggleSelect, onQuickStatus }: {
   entry: EditableEntry
-  index: number
   onClick: () => void
-  // Gates the entrance transition. Sections pass their own in-view state so a
-  // section's cascade runs when it scrolls into view rather than all seven
-  // sections firing at once on mount. Defaults true for the Continue shelf,
-  // which is above the fold and animates on mount as it always has.
-  revealed?: boolean
+  // Hands the reveal wrapper to the section's shared IntersectionObserver
+  registerReveal: (el: HTMLDivElement | null) => void
   selectionMode?: boolean
   selected?: boolean
   onToggleSelect?: () => void
   onQuickStatus?: (next: string) => void
 }) {
   const [imgError, setImgError] = useState(false)
-  const [entered, setEntered] = useState(false)
   const [statusMenuOpen, setStatusMenuOpen] = useState(false)
-  const tiltRef = useRef<HTMLDivElement>(null)
-  const tiltRafRef = useRef(0)
   const showFallback = !entry.poster_url || imgError
   const progress = progressPercent(entry)
+  // ±7° at the edges, lifted 30px toward the viewer, with a pale rose glare
+  // under the pointer. Off in selection mode so checkboxes sit on a level row.
+  const { tiltRef, glareRef, onMouseMove, onMouseLeave } = useTilt({
+    max: 7,
+    lift: 'translateZ(30px) translateY(-6px)',
+    glare: 0.28,
+    disabled: selectionMode,
+  })
 
   function handleActivate() {
     if (selectionMode) onToggleSelect?.()
     else onClick()
   }
 
-  // One frame after the card is both mounted and revealed, flip to the visible
-  // class so the CSS transition (and this card's stagger delay) actually runs —
-  // setting both classes in the same frame would skip the transition entirely.
-  useEffect(() => {
-    if (!revealed) return
-    const raf = requestAnimationFrame(() => setEntered(true))
-    return () => cancelAnimationFrame(raf)
-  }, [revealed])
-
-  // The transform is written straight to the DOM node instead of through
-  // state — a state update would re-render the whole card on every frame of
-  // mouse movement. Coalescing through requestAnimationFrame means at most
-  // one geometry read + style write per frame no matter how fast the mouse
-  // moves, and the rect is read fresh each time so scrolling (the Continue
-  // shelf) never leaves the math stale.
-  function handleTiltMove(e: React.MouseEvent<HTMLDivElement>) {
-    if (!FINE_POINTER || selectionMode) return
-    const el = tiltRef.current
-    if (!el) return
-    const { clientX, clientY } = e
-    cancelAnimationFrame(tiltRafRef.current)
-    tiltRafRef.current = requestAnimationFrame(() => {
-      const rect = el.getBoundingClientRect()
-      const px = (clientX - rect.left) / rect.width - 0.5   // -0.5 … 0.5
-      const py = (clientY - rect.top) / rect.height - 0.5
-      el.style.transform =
-        `perspective(800px) rotateX(${(py * TILT_MAX_DEG * 2).toFixed(2)}deg) rotateY(${(-px * TILT_MAX_DEG * 2).toFixed(2)}deg)`
-    })
-  }
-
-  function handleTiltLeave() {
-    cancelAnimationFrame(tiltRafRef.current)
-    // Emptying the inline transform hands control back to the stylesheet
-    // default (none); .card-tilt's transition eases the card flat again.
-    if (tiltRef.current) tiltRef.current.style.transform = ''
-  }
-
   // Entering selection mode mid-hover would otherwise freeze the card at
-  // whatever angle it had — flatten it so checkboxes sit on a level grid.
+  // whatever angle it had — flatten it
   useEffect(() => {
-    if (selectionMode) handleTiltLeave()
-  }, [selectionMode])
-
-  useEffect(() => () => cancelAnimationFrame(tiltRafRef.current), [])
+    if (selectionMode) onMouseLeave()
+  }, [selectionMode, onMouseLeave])
 
   return (
-    <div
-      className={`w-full ${entered ? 'card-visible' : 'card-entering'}`}
-      style={{ transitionDelay: `${Math.min(index * CARD_STAGGER_STEP_MS, CARD_STAGGER_CAP_MS)}ms` }}
-    >
-    {/* Dedicated tilt layer: this transform can't live on either neighbor.
-        The stagger wrapper above transitions its own transform with a per-card
-        delay (the tilt would inherit that delay), and Framer Motion owns the
-        motion.div's transform for `layout` animations (it overwrites inline
-        transforms). The glow, border, and poster zoom all live inside, so the
-        whole card tilts as one object. */}
+    <div ref={registerReveal} className="shelf-reveal">
+    {/* Tilt layer — see the three-layer note above EntryCard */}
     <div
       ref={tiltRef}
       className="card-tilt"
-      onMouseMove={handleTiltMove}
-      onMouseLeave={handleTiltLeave}
+      onMouseMove={onMouseMove}
+      onMouseLeave={onMouseLeave}
     >
     {/* role="button" div rather than <button> — the hover overlay nests real
         <button>s inside, and buttons can't legally contain buttons */}
@@ -361,11 +303,11 @@ function EntryCard({ entry, index, onClick, revealed = true, selectionMode, sele
       className="group flex flex-col text-left cursor-pointer w-full overflow-hidden"
       style={{
         background: 'var(--color-surface)',
-        border: '1px solid var(--color-border)',
+        border: `1px solid ${selectionMode && selected ? '#B76E79' : 'var(--color-border)'}`,
         borderRadius: 12,
         boxShadow: '0 0 0px 0px rgba(183,110,121,0)',
-        opacity: selectionMode && !selected ? 0.7 : 1,
-        transition: 'opacity 0.2s ease',
+        opacity: selectionMode && !selected ? 0.75 : 1,
+        transition: 'opacity 0.2s ease, border-color 0.2s ease',
       }}
     >
       <div className="relative w-full overflow-hidden" style={{ aspectRatio: '2/3' }}>
@@ -376,7 +318,7 @@ function EntryCard({ entry, index, onClick, revealed = true, selectionMode, sele
             loading="lazy"
             decoding="async"
             onError={() => setImgError(true)}
-            className="w-full h-full object-cover transition-[transform,filter] duration-300 ease-out group-hover:scale-105 group-hover:brightness-110"
+            className="shelf-poster w-full h-full object-cover"
           />
         ) : (
           <CoverFallback type={entry.type} title={entry.title} year={entry.year} />
@@ -504,13 +446,27 @@ function EntryCard({ entry, index, onClick, revealed = true, selectionMode, sele
         </span>
       </div>
     </motion.div>
+    <div ref={glareRef} className="card-glare" aria-hidden="true" />
     </div>
     </div>
   )
 }
 
-// One labeled band of the continuous vault page. Only rendered when it has
-// entries, so this never has to draw an empty state of its own.
+const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+const REVEAL_STAGGER_MS = 70
+const REVEAL_STAGGER_CAP = 8
+
+// One labeled shelf of the continuous vault page: a heading, then a single
+// horizontally scrolling row of cards. Only rendered when it has entries, so
+// it never draws an empty state of its own.
+//
+// Reveal: one IntersectionObserver per section watches every card's reveal
+// wrapper, with <main> as the root (the vault scrolls <main>, not the
+// window). It fires per card, once — including cards further along the row,
+// which the row's own overflow keeps out of view until you scroll to them.
+// Cards that arrive in the same batch stagger by 70ms each, capped at 8.
+// The class is added straight to the DOM rather than through state, so a
+// reveal never re-renders the card.
 function VaultSection({
   label, type, entries, selectionMode, selectedIds, onEdit, onToggleSelect, onQuickStatus,
 }: {
@@ -523,52 +479,59 @@ function VaultSection({
   onToggleSelect: (id: string) => void
   onQuickStatus: (entry: EditableEntry, next: string) => void
 }) {
-  const ref = useRef<HTMLElement>(null)
-  // `amount` is the fraction of *this section* that must be visible, and a
-  // section taller than the viewport can never reach a high ratio — 0.05 keeps
-  // it reachable at any section height while still waiting for the band to
-  // actually appear. once: true so scrolling back up doesn't replay it.
-  const inView = useInView(ref, { once: true, amount: 0.05 })
+  const sectionRef = useRef<HTMLElement>(null)
+  const observerRef = useRef<IntersectionObserver | null>(null)
+  // Cards can mount before the observer exists (children's refs attach
+  // before the parent's effect runs), so they queue here until it does
+  const pendingRef = useRef<Set<HTMLDivElement>>(new Set())
+
+  useEffect(() => {
+    const root = sectionRef.current?.closest('main') ?? null
+    const observer = new IntersectionObserver(records => {
+      let k = 0
+      for (const r of records) {
+        if (!r.isIntersecting) continue
+        const el = r.target as HTMLElement
+        el.style.transitionDelay = `${Math.min(k++, REVEAL_STAGGER_CAP) * REVEAL_STAGGER_MS}ms`
+        el.classList.add('is-revealed')
+        observer.unobserve(el)
+      }
+    }, { root, threshold: 0.1 })
+    observerRef.current = observer
+    pendingRef.current.forEach(el => observer.observe(el))
+    pendingRef.current.clear()
+    return () => observer.disconnect()
+  }, [])
+
+  // Stable callback ref for every card's reveal wrapper
+  const registerReveal = useCallback((el: HTMLDivElement | null) => {
+    if (!el || el.classList.contains('is-revealed')) return
+    if (REDUCED_MOTION) {
+      el.classList.add('is-revealed')
+      return
+    }
+    if (observerRef.current) observerRef.current.observe(el)
+    else pendingRef.current.add(el)
+  }, [])
 
   return (
-    <section ref={ref} className="pb-6">
-      <h2
-        className="flex items-center gap-2.5 px-6 mb-2.5"
-        style={{
-          fontSize: 11,
-          fontWeight: 500,
-          letterSpacing: '0.28em',
-          textTransform: 'uppercase',
-          color: 'var(--color-text-muted)',
-          // same trick the old index tabs used — keeps the label legible where
-          // the backdrop shows behind it
-          textShadow: '0 1px 6px rgba(8, 8, 8, 0.9)',
-        }}
-      >
-        <span
-          aria-hidden="true"
-          className="rounded-full flex-shrink-0"
-          style={{
-            width: 7,
-            height: 7,
-            background: TYPE_DOT_COLORS[type],
-            boxShadow: '0 0 0 2px rgba(8,8,8,0.7)',
-          }}
-        />
+    <section ref={sectionRef} className="shelf">
+      <h2 className="shelf-heading">
+        <span aria-hidden="true" className="shelf-heading-dot" style={{ background: TYPE_DOT_COLORS[type] }} />
         {label}
+        <span className="shelf-heading-count">{entries.length}</span>
+        <span aria-hidden="true" className="shelf-heading-rule" />
       </h2>
 
-      <div
-        className="grid gap-6 px-6"
-        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}
-      >
+      {/* layoutScroll: this row scrolls horizontally, and Framer Motion needs
+          to know so its layout measurements account for the scroll offset */}
+      <motion.div layoutScroll className="shelf-row">
         <AnimatePresence mode="popLayout">
-          {entries.map((entry, i) => (
+          {entries.map(entry => (
             <EntryCard
               key={entry.id}
               entry={entry}
-              index={i}
-              revealed={inView}
+              registerReveal={registerReveal}
               onClick={() => onEdit(entry)}
               selectionMode={selectionMode}
               selected={selectedIds.has(entry.id)}
@@ -577,9 +540,44 @@ function VaultSection({
             />
           ))}
         </AnimatePresence>
-      </div>
+      </motion.div>
     </section>
   )
+}
+
+// Poster parallax for every shelf card: each poster sits scaled up 14% inside
+// its frame and drifts vertically against the scroll, by up to 6% of its
+// height, depending on how far its centre is from the middle of the window.
+// One passive scroll listener on <main>, coalesced to one rAF per frame, and
+// only posters actually near the viewport are written.
+function useShelfParallax(rootRef: React.RefObject<HTMLElement | null>, active: boolean) {
+  useEffect(() => {
+    if (!active || REDUCED_MOTION) return
+    const main = rootRef.current?.closest('main')
+    if (!main) return
+    let raf = 0
+    function update() {
+      raf = 0
+      const H = window.innerHeight
+      main!.querySelectorAll<HTMLImageElement>('.shelf-poster').forEach(img => {
+        const r = img.getBoundingClientRect()
+        if (r.bottom < -H * 0.5 || r.top > H * 1.5) return
+        const off = Math.max(-1, Math.min(1, (r.top + r.height / 2 - H / 2) / H))
+        img.style.transform = `scale(1.14) translateY(${(off * -6).toFixed(2)}%)`
+      })
+    }
+    function schedule() {
+      if (!raf) raf = requestAnimationFrame(update)
+    }
+    schedule()
+    main.addEventListener('scroll', schedule, { passive: true })
+    window.addEventListener('resize', schedule)
+    return () => {
+      cancelAnimationFrame(raf)
+      main.removeEventListener('scroll', schedule)
+      window.removeEventListener('resize', schedule)
+    }
+  }, [rootRef, active])
 }
 
 // Two line segments with a 12px gap around the diamond — reads as one rule
@@ -598,8 +596,10 @@ function OrnamentDivider() {
 function SkeletonCard() {
   return (
     <div
-      className="flex flex-col w-full overflow-hidden"
+      className="flex flex-col overflow-hidden"
       style={{
+        width: 190,
+        flexShrink: 0,
         background: 'var(--color-surface)',
         border: '1px solid var(--color-border)',
         borderRadius: 12,
@@ -870,6 +870,10 @@ export default function EntryList({
     }
   }
 
+  // Poster parallax across all shelves; re-bound when the shelves (re)mount
+  const shelvesRef = useRef<HTMLDivElement>(null)
+  useShelfParallax(shelvesRef, !loading && sections.length > 0)
+
   const countChips = useMemo(() => {
     const completed  = entries.filter(e => e.status === 'completed').length
     const inProgress = entries.filter(e => e.status === 'in_progress').length
@@ -1010,11 +1014,8 @@ export default function EntryList({
       {loading && (
         <>
           <SkeletonStage />
-          <div
-            className="grid gap-6 px-6 pb-10"
-            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}
-          >
-            {Array.from({ length: 10 }, (_, i) => <SkeletonCard key={i} />)}
+          <div className="shelf-row" style={{ overflow: 'hidden' }}>
+            {Array.from({ length: 8 }, (_, i) => <SkeletonCard key={i} />)}
           </div>
         </>
       )}
@@ -1041,7 +1042,7 @@ export default function EntryList({
           No entries match these filters.
         </p>
       ) : (
-        <div className="pb-10">
+        <div ref={shelvesRef} className="pb-10">
           {sections.map(section => (
             <VaultSection
               key={section.value}

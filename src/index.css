@@ -997,17 +997,108 @@ button.search-result-pill:disabled {
   }
 }
 
-.card-entering,
-.card-visible {
-  transition: opacity 0.4s ease-out, transform 0.4s ease-out;
+/* ── Vault shelves ─────────────────────────────────────────────────────────
+   Each section is one horizontally scrolling row. The row sets overflow, so
+   it clips vertically too: the top/bottom padding is what leaves room for a
+   hovered card's lift and glow. Nothing sticky lives inside it. */
+.shelf {
+  margin-bottom: 34px;
 }
-.card-entering {
+.shelf-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 24px;
+  margin: 0 0 2px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  text-shadow: 0 1px 6px rgba(8, 8, 8, 0.9);
+}
+.shelf-heading-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 2px rgba(8, 8, 8, 0.7);
+}
+.shelf-heading-count {
+  color: #6B6660;
+  letter-spacing: 0.12em;
+}
+.shelf-heading-rule {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, #1E1E1E, transparent);
+}
+.shelf-row {
+  position: relative;
+  display: flex;
+  gap: 24px;
+  overflow-x: auto;
+  padding: 14px 24px 22px;
+  scroll-snap-type: x proximity;
+  scroll-padding: 0 24px;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, black 24px, black calc(100% - 60px), transparent);
+  mask-image: linear-gradient(90deg, transparent 0, black 24px, black calc(100% - 60px), transparent);
+}
+.shelf-row::-webkit-scrollbar {
+  display: none;
+}
+
+/* Layer 1 of a card: the one-time reveal. Starts tipped back and sunk into
+   the shelf; .is-revealed (added by the section's IntersectionObserver, with
+   an inline stagger delay) lets it rise flat. */
+.shelf-reveal {
+  flex: none;
+  width: 190px;
+  scroll-snap-align: start;
   opacity: 0;
-  transform: translateY(12px);
+  transform: perspective(900px) rotateX(38deg) translateY(70px) translateZ(-120px);
+  transform-origin: 50% 100%;
+  transition: opacity 0.6s ease, transform 0.9s cubic-bezier(.2, .8, .2, 1);
 }
-.card-visible {
+.shelf-reveal.is-revealed {
   opacity: 1;
-  transform: translateY(0);
+  transform: none;
+}
+
+/* Layer 2's glare: a pale rose radial that useTilt moves under the pointer */
+.card-tilt {
+  position: relative;
+  border-radius: 12px;
+}
+.card-glare {
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+/* Poster inside the card. Its transform belongs to the scroll parallax
+   (written per frame), so only the filter transitions. */
+.shelf-poster {
+  transform: scale(1.14);
+  transition: filter 0.3s ease-out;
+}
+.group:hover .shelf-poster {
+  filter: brightness(1.1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shelf-reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .shelf-poster {
+    transform: none;
+  }
 }
 
 /* 3D hover tilt — the transform itself is written imperatively from EntryCard
@@ -1017,6 +1108,7 @@ button.search-result-pill:disabled {
 @media (hover: hover) and (pointer: fine) {
   .card-tilt {
     transition: transform 0.18s ease-out;
+    will-change: transform;
   }
 }
 
@@ -1028,13 +1120,15 @@ button.search-result-pill:disabled {
 .card-quick-actions {
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.2s ease;
+  transform: translateY(8px);
+  transition: opacity 0.2s ease, transform 0.3s cubic-bezier(.2, .8, .2, 1);
 }
 @media (hover: hover) and (pointer: fine) {
   .group:hover .card-quick-actions,
   .card-quick-actions:focus-within {
     opacity: 1;
     pointer-events: auto;
+    transform: none;
   }
 }
 
