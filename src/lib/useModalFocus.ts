@@ -12,7 +12,7 @@ const FOCUSABLE_SELECTOR = [
 
 // Focus management for modals — what <dialog>.showModal() would give us for
 // free. We can't use native <dialog> here: it renders in the browser's top
-// layer, above every z-index including the SmoothCursor overlay, and since
+// layer, above every z-index including the RingCursor overlay, and since
 // the real cursor is hidden globally (`cursor: none`) the user would have no
 // visible cursor inside the modal.
 //

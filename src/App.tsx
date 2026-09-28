@@ -7,7 +7,7 @@ import LandingPage from './pages/LandingPage'
 import MediaSearch from './components/MediaSearch'
 import EntryList from './components/EntryList'
 import type { EditableEntry } from './components/EntryEditModal'
-import SmoothCursor from './components/SmoothCursor'
+import RingCursor from './components/RingCursor'
 import { AuroraBackground } from './components/AuroraBackground'
 
 // Recharts (StatsDashboard's main dependency) is the largest chunk in the
@@ -85,11 +85,16 @@ function App() {
 
   if (loading) return null
 
-  if (!session) return <LandingPage />
+  if (!session) return (
+    <>
+      <RingCursor />
+      <LandingPage />
+    </>
+  )
 
   return (
     <>
-      <SmoothCursor />
+      <RingCursor />
       <Toaster
         position="bottom-right"
         duration={3000}

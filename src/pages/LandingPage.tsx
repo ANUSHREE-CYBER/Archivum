@@ -512,22 +512,6 @@ export default function LandingPage() {
           50%      { transform: translateY(4px); }
         }
 
-        /* ── Sections below the hero ──────────────────────────────────────
-           The hero hides the OS cursor (the spotlight canvas *is* the cursor
-           there), and index.css enforces that globally with
-           \`* { cursor: none !important }\`. There's no spotlight down here, so
-           the pointer has to come back or these sections feel dead. A class
-           selector outranks the universal one, so this wins without needing
-           to touch the global rule. */
-        .lp-section,
-        .lp-section * {
-          cursor: auto !important;
-        }
-        .lp-section a,
-        .lp-section button {
-          cursor: pointer !important;
-        }
-
         .lp-section {
           position: relative;
           z-index: 2;
@@ -815,7 +799,7 @@ export default function LandingPage() {
         </nav>
 
         {/* ── Hero ── */}
-        <section style={{ position: 'relative', width: '100%', height: '100vh', overflow: 'hidden', cursor: 'none' }}>
+        <section data-ring-hidden style={{ position: 'relative', width: '100%', height: '100vh', overflow: 'hidden', cursor: 'none' }}>
 
         {/* ── Poster collage ── */}
         {POSTERS.map((p, i) => (
