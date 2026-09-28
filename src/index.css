@@ -412,6 +412,289 @@ button.vault-control.is-danger:hover:not(:disabled) {
   box-shadow: inset 0 7px 10px -9px rgba(0, 0, 0, 0.9);
 }
 
+/* ── Add drawer (MediaSearch) ────────────────────────────────────────────
+   One wrapping row: label, type tabs, search field, Add manually. Results
+   appear under it as a horizontal row of posters. */
+.add-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px 26px;
+  padding: 18px 24px;
+}
+.add-bar-label {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+
+/* The underline is one element for all seven tabs; MediaSearch writes its
+   width + translateX from the active button's offsetWidth/offsetLeft, and
+   the transition makes it slide. */
+.add-tabs {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  padding-bottom: 6px;
+}
+.add-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--color-text-muted);
+  transition: color 0.2s ease;
+}
+.add-tab:hover {
+  color: var(--color-text);
+}
+.add-tab.is-active {
+  color: #E4BCC3;
+}
+.add-tab-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  opacity: 0.45;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.add-tab.is-active .add-tab-dot {
+  opacity: 1;
+  transform: scale(1.2);
+}
+.add-tabs-line {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: 0;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #96555F, #E4BCC3);
+  box-shadow: 0 0 12px rgba(228, 188, 195, 0.5);
+  transition: transform 0.45s cubic-bezier(.2, .8, .2, 1), width 0.45s cubic-bezier(.2, .8, .2, 1);
+}
+
+.add-search {
+  position: relative;
+  flex: 1;
+  min-width: 240px;
+}
+.add-search-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  margin-top: -7px;
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+.add-search-input {
+  width: 100%;
+  padding: 11px 44px 11px 38px;
+  border-radius: 10px;
+  background: rgba(8, 8, 8, 0.7);
+  border: 1px solid #1E1E1E;
+  color: var(--color-text);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.add-search-input::placeholder {
+  color: var(--color-text-muted);
+}
+.add-search-input:focus {
+  border-color: #B76E79;
+  box-shadow: 0 0 0 4px rgba(183, 110, 121, 0.14);
+}
+.add-search-key {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  margin-top: -10px;
+  height: 20px;
+  min-width: 20px;
+  padding: 0 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  border: 1px solid #2A2A2A;
+  background: #111111;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+.add-manual-btn {
+  padding: 10px 14px;
+  border: 1px solid #96555F;
+  border-radius: 10px;
+  background: transparent;
+  color: #C98A93;
+  font-size: 13px;
+  white-space: nowrap;
+  transition: background-color 0.2s ease;
+}
+.add-manual-btn:hover {
+  background: rgba(183, 110, 121, 0.12);
+}
+
+.add-results {
+  padding: 0 24px 20px;
+}
+.add-results-note {
+  padding: 18px 0;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+.add-results-link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: #C98A93;
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.add-results-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  font-size: 11px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: #6B6660;
+}
+.add-results-eyebrow span {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, #1E1E1E, transparent);
+}
+/* Top padding leaves room for the hovered poster's lift, which the
+   horizontal scroll would otherwise clip. */
+.add-results-row {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  padding: 12px 4px 10px;
+  margin: -12px -4px 0;
+  list-style: none;
+  /* thin and dark, instead of the OS's bright default bar */
+  scrollbar-width: thin;
+  scrollbar-color: #2A2A2A transparent;
+}
+
+@keyframes resultIn {
+  from {
+    opacity: 0;
+    transform: perspective(700px) rotateX(-40deg) translateY(24px);
+  }
+}
+/* The flip-in lives on the <li>; the tilt on the poster inside it — two
+   layers, so the entrance's transform can't overwrite the hover tilt. */
+.search-result {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 128px;
+  animation: resultIn 0.6s cubic-bezier(.2, .8, .2, 1) backwards;
+}
+.search-result-poster {
+  position: relative;
+  width: 128px;
+  aspect-ratio: 2 / 3;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #1E1E1E;
+  background: #0C0C0C;
+  box-shadow: 0 18px 36px -18px rgba(0, 0, 0, 0.9);
+  transition: transform 0.18s ease-out;
+}
+.search-result-poster img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.search-result-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  text-align: center;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 13px;
+  color: var(--color-text);
+}
+.search-result-glare {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+.search-result-title,
+.search-result-sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.search-result-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text);
+}
+.search-result-sub {
+  margin-top: -4px;
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+.search-result-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+.search-result-pill {
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid #B76E79;
+  background: #B76E79;
+  color: #080808;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+button.search-result-pill:hover:not(:disabled) {
+  background: #C98A93;
+  border-color: #C98A93;
+}
+button.search-result-pill:disabled {
+  opacity: 0.5;
+}
+.search-result-pill.is-owned {
+  border-color: #2A2A2A;
+  background: transparent;
+  color: #6B6660;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .search-result { animation: none; }
+  .add-tabs-line { transition: none; }
+}
+
 .card-entering,
 .card-visible {
   transition: opacity 0.4s ease-out, transform 0.4s ease-out;

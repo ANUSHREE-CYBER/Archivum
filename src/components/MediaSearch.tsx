@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { supabase } from '../lib/supabase'
 import ManualEntryModal from './ManualEntryModal'
+import { TYPE_DOT_COLORS } from '../lib/typeColors'
+import { useTilt } from '../lib/useTilt'
 
 const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY as string
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w342'
@@ -229,9 +231,92 @@ async function searchMangaWithFallback(query: string): Promise<MangaResult[]> {
 interface Props {
   userId: string
   onSaved: () => void
+  // `${type}|${lowercased title}` for everything already in the vault, so a
+  // result can show "In vault ✓" instead of "+ Add". Display only — the
+  // unique index (and its 23505 toast) is still what actually blocks dupes.
+  vaultKeys?: Set<string>
+  // Bumped by App's "/" shortcut; each change focuses the search input
+  focusSignal?: number
 }
 
-export default function MediaSearch({ userId, onSaved }: Props) {
+// Rotating placeholder examples per tab: the plain "Search for a …" prompt,
+// then each of these as `Try "…"`, one every 2.6s while the field is empty.
+const EXAMPLES: Record<Tab, string[]> = {
+  movie:   ['Dune', 'Heat', 'Parasite'],
+  tv_show: ['Breaking Bad', 'Mindhunter'],
+  kdrama:  ['Signal', 'Vincenzo'],
+  anime:   ['Frieren', 'Demon Slayer'],
+  book:    ['Piranesi', 'Stoner'],
+  manga:   ['Berserk', 'Vagabond'],
+  manhwa:  ['Solo Leveling', 'Tower of God'],
+}
+const PLACEHOLDER_MS = 2600
+
+interface ResultView {
+  key: string
+  title: string
+  year: string | null
+  subtitle: string | null
+  poster: string | null
+  inVault: boolean
+  result: SearchResult
+}
+
+// One search result: 128px poster that flips in (staggered by index), tilts
+// with a glare on hover, and carries its own Add pill underneath. The tilt
+// sits on an inner div so it never fights the flip-in animation's transform.
+function ResultCard({ view, index, tab, saving, onAdd }: {
+  view: ResultView
+  index: number
+  tab: Tab
+  saving: boolean
+  onAdd: () => void
+}) {
+  const { tiltRef, glareRef, onMouseMove, onMouseLeave } = useTilt({ max: 7, lift: 'translateZ(20px)', perspective: 700, glare: 0.28 })
+  const [imgError, setImgError] = useState(false)
+  return (
+    <li className="search-result" style={{ animationDelay: `${index * 60}ms` }}>
+      <div
+        ref={tiltRef}
+        className="search-result-poster"
+        onMouseMove={onMouseMove}
+        onMouseLeave={onMouseLeave}
+      >
+        {view.poster && !imgError ? (
+          <img src={view.poster} alt="" loading="lazy" decoding="async" onError={() => setImgError(true)} />
+        ) : (
+          <div
+            className="search-result-fallback"
+            style={{ background: `linear-gradient(160deg, ${TYPE_DOT_COLORS[tab]}44 0%, #0c0c0c 80%)` }}
+          >
+            {view.title}
+          </div>
+        )}
+        <div ref={glareRef} className="search-result-glare" />
+      </div>
+      <span className="search-result-title" title={view.title}>{view.title}</span>
+      {view.subtitle && <span className="search-result-sub" title={view.subtitle}>{view.subtitle}</span>}
+      <div className="search-result-meta">
+        <span>{view.year ?? '—'}</span>
+        {view.inVault ? (
+          <span className="search-result-pill is-owned">In vault ✓</span>
+        ) : (
+          <button
+            type="button"
+            onClick={onAdd}
+            disabled={saving}
+            className="search-result-pill cursor-pointer"
+            aria-label={`Add ${view.title}`}
+          >
+            + Add
+          </button>
+        )}
+      </div>
+    </li>
+  )
+}
+
+export default function MediaSearch({ userId, onSaved, vaultKeys, focusSignal = 0 }: Props) {
   const [tab, setTab] = useState<Tab>('movie')
   const [showManual, setShowManual] = useState(false)
   const [query, setQuery] = useState('')
@@ -246,6 +331,40 @@ export default function MediaSearch({ userId, onSaved }: Props) {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const tabsRef = useRef<HTMLDivElement>(null)
+  const tabLineRef = useRef<HTMLDivElement>(null)
+  const [placeholderStep, setPlaceholderStep] = useState(0)
+
+  // "/" from App: focus on every bump (and on mount, if the drawer was
+  // opened by the shortcut rather than the button)
+  useEffect(() => {
+    if (focusSignal > 0) inputRef.current?.focus()
+  }, [focusSignal])
+
+  // Advance the rotating placeholder only while the field is empty; typing
+  // stops the interval, and the cleanup restarts it cleanly per tab.
+  useEffect(() => {
+    if (query) return
+    const id = setInterval(() => setPlaceholderStep(n => n + 1), PLACEHOLDER_MS)
+    return () => clearInterval(id)
+  }, [query, tab])
+
+  // One shared underline that slides to the active tab. Measured from the
+  // button's own offsetLeft/offsetWidth (layout effect, so it's placed before
+  // paint) and re-measured on resize, since wrapping can move the tabs.
+  useLayoutEffect(() => {
+    function place() {
+      const line = tabLineRef.current
+      const btn = tabsRef.current?.querySelector<HTMLElement>('[data-active="true"]')
+      if (!line || !btn) return
+      line.style.width = `${btn.offsetWidth}px`
+      line.style.transform = `translateX(${btn.offsetLeft}px)`
+    }
+    place()
+    window.addEventListener('resize', place)
+    return () => window.removeEventListener('resize', place)
+  }, [tab])
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
@@ -316,6 +435,7 @@ export default function MediaSearch({ userId, onSaved }: Props) {
 
   function switchTab(next: Tab) {
     setTab(next)
+    setPlaceholderStep(0)
     setQuery('')
     setResults([])
     setSaveError('')
@@ -418,229 +538,195 @@ export default function MediaSearch({ userId, onSaved }: Props) {
     } else {
       setQuery('')
       setResults([])
-      toast.success(`Added ${title} to your library`)
+      toast.success(`${title} added to your archive`)
       onSaved()
     }
   }
 
-  const placeholder =
-    tab === 'movie'   ? 'Search for a movie…' :
-    tab === 'anime'   ? 'Search for an anime…' :
-    tab === 'book'    ? 'Search for a book…' :
-    tab === 'manga'   ? 'Search for a manga…' :
-    tab === 'manhwa'  ? 'Search for a manhwa…' :
-    'Search for a TV show…'
+  const examples = EXAMPLES[tab]
+  const exampleIdx = placeholderStep % (examples.length + 1)
+  const placeholder = exampleIdx > 0
+    ? `Try “${examples[exampleIdx - 1]}”`
+    : tab === 'movie'   ? 'Search for a movie…' :
+      tab === 'anime'   ? 'Search for an anime…' :
+      tab === 'book'    ? 'Search for a book…' :
+      tab === 'manga'   ? 'Search for a manga…' :
+      tab === 'manhwa'  ? 'Search for a manhwa…' :
+      tab === 'kdrama'  ? 'Search for a kdrama…' :
+      'Search for a TV show…'
+
+  // Flatten the four result shapes into one display row each. Same field
+  // picks as handleSelect uses for the insert, so what's shown is what's saved.
+  const views: ResultView[] = results.map(result => {
+    let key: string
+    let title: string
+    let year: string | null
+    let poster: string | null
+    let subtitle: string | null = null
+
+    if (isBookResult(result)) {
+      const b = result
+      key      = b.key
+      title    = b.title
+      year     = b.first_publish_year ? String(b.first_publish_year) : null
+      poster   = b.cover_i ? `https://covers.openlibrary.org/b/id/${b.cover_i}-L.jpg` : null
+      subtitle = b.author_name?.[0] ?? null
+    } else if (isAnimeResult(result)) {
+      const a = result
+      key    = String(a.id)
+      title  = a.title.english || a.title.romaji
+      year   = a.startDate.year ? String(a.startDate.year) : null
+      poster = a.coverImage.large ?? a.coverImage.medium ?? null
+    } else if (isMangaResult(result)) {
+      const mr = result
+      if (mr._source === 'anilist') {
+        const a = mr
+        key    = String(a.id)
+        title  = a.title.english || a.title.romaji
+        year   = a.startDate.year ? String(a.startDate.year) : null
+        poster = a.coverImage.large ?? a.coverImage.medium ?? null
+      } else {
+        const m = mr
+        key    = m.id
+        title  = m.attributes.title.en ?? Object.values(m.attributes.title)[0] ?? ''
+        year   = m.attributes.year ? String(m.attributes.year) : null
+        const coverRel = m.relationships.find(r => r.type === 'cover_art')
+        poster = coverRel?.attributes?.fileName
+          ? `https://uploads.mangadex.org/covers/${m.id}/${coverRel.attributes.fileName}.256.jpg`
+          : null
+      }
+    } else {
+      const t = result
+      key    = String(t.id)
+      title  = isTV(t) ? t.name : t.title
+      const date = isTV(t) ? t.first_air_date : t.release_date
+      year   = date ? date.slice(0, 4) : null
+      poster = t.poster_path ? `${TMDB_IMAGE_BASE}${t.poster_path}` : null
+    }
+
+    const inVault = vaultKeys?.has(`${result._tab}|${title.toLowerCase()}`) ?? false
+    return { key, title, year, poster, subtitle, inVault, result }
+  })
+
+  const tabLabel = TABS.find(t => t.value === tab)?.label ?? ''
 
   return (
     <>
-    {/* Full-width drawer under the filter tab row — frosted glass over the
+    {/* Full-width drawer under the vault header — frosted glass over the
         backdrop. The slide open/close animation lives in App.tsx (AnimatePresence
         around the mount), since exit animations need the component that owns
         the conditional. */}
     <div
-      className="flex flex-col gap-4 w-full px-6 py-5"
+      className="w-full"
       style={{
         background: 'rgba(17, 17, 17, 0.85)',
         backdropFilter: 'blur(12px)',
         borderBottom: '1px solid var(--color-border)',
       }}
     >
-      <div className="flex items-center gap-4 flex-nowrap">
-        <span
-          className="hidden min-[900px]:inline flex-shrink-0 italic"
-          style={{
-            fontFamily: "Georgia, 'Times New Roman', serif",
-            fontSize: 13,
-            color: 'var(--color-text-muted)',
-          }}
-        >
-          Add to your archive
-        </span>
+      <div className="add-bar">
+        <span className="add-bar-label">Add to your archive</span>
 
-        {/* API type selector — minimal text tabs, the underline is the only
-            active marker so the gold stays quiet */}
-        <div className="flex items-center gap-3 flex-shrink-0">
+        {/* API type selector: text tabs with their type dot, and one
+            shared underline that slides to whichever is active */}
+        <div ref={tabsRef} className="add-tabs" role="tablist" aria-label="Search in">
           {TABS.map(t => (
             <button
               key={t.value}
+              role="tab"
+              aria-selected={tab === t.value}
+              data-active={tab === t.value}
               onClick={() => switchTab(t.value)}
-              className={`text-sm font-medium cursor-pointer whitespace-nowrap transition-colors ${
-                tab === t.value ? 'text-[#B76E79]' : 'text-[#9A9590] hover:text-[#F2EFE9]'
-              }`}
-              style={{
-                background: 'none',
-                border: 'none',
-                padding: '2px 0 4px',
-                borderBottom: tab === t.value ? '2px solid #B76E79' : '2px solid transparent',
-              }}
+              className={`add-tab cursor-pointer${tab === t.value ? ' is-active' : ''}`}
             >
+              <span className="add-tab-dot" style={{ background: TYPE_DOT_COLORS[t.value] }} />
               {t.label}
             </button>
           ))}
+          <div ref={tabLineRef} className="add-tabs-line" aria-hidden="true" />
         </div>
 
-        <input
-          type="text"
-          placeholder={placeholder}
-          value={query}
-          onChange={e => {
-            setSaveError('')
-            setQuery(e.target.value)
-          }}
-          className="flex-1 min-w-0 rounded-lg px-3 text-sm outline-none transition-colors bg-[#0D0D0D] border border-[#1E1E1E] focus:border-[#3A3A3A] placeholder:text-[#9A9590]"
-          style={{ height: 40, color: 'var(--color-text)' }}
-        />
+        <div className="add-search">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true" className="add-search-icon">
+            <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.5" />
+            <path d="M9.5 9.5 13 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+          <input
+            ref={inputRef}
+            type="text"
+            aria-label={`Search ${tabLabel}`}
+            placeholder={placeholder}
+            value={query}
+            onChange={e => {
+              setSaveError('')
+              setQuery(e.target.value)
+            }}
+            className="add-search-input"
+          />
+          <kbd className="add-search-key" aria-hidden="true">/</kbd>
+        </div>
 
-        <button
-          onClick={() => setShowManual(true)}
-          className="text-xs cursor-pointer hover:bg-[var(--color-accent)] hover:text-[var(--color-background)] whitespace-nowrap rounded px-3 py-2 flex-shrink-0"
-          style={{
-            background: 'none',
-            border: '1px solid var(--color-accent)',
-            color: 'var(--color-accent)',
-            transition: 'background-color 0.15s, color 0.15s',
-          }}
-        >
+        <button onClick={() => setShowManual(true)} className="add-manual-btn cursor-pointer">
           Add manually
         </button>
       </div>
 
-      {searching && (
-        <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-          Searching…
-        </p>
-      )}
+      {(query.trim() || saveError) && (
+        <div className="add-results">
+          {searching && <p className="add-results-note">Searching…</p>}
 
-      {!searching && searchError && (
-        <div className="flex items-center gap-3">
-          <p className="text-sm flex-1" style={{ color: 'var(--color-danger)' }}>
-            {searchError}
-          </p>
-          <button
-            type="button"
-            onClick={() => setSearchRetryTick(t => t + 1)}
-            className="text-xs font-semibold rounded px-2.5 py-1.5 cursor-pointer hover:opacity-90 flex-shrink-0"
-            style={{ background: 'var(--color-danger)', color: '#F2EFE9', border: 'none' }}
-          >
-            Retry
-          </button>
+          {!searching && searchError && (
+            <div className="flex items-center gap-3">
+              <p className="text-sm flex-1" style={{ color: 'var(--color-danger)' }}>
+                {searchError}
+              </p>
+              <button
+                type="button"
+                onClick={() => setSearchRetryTick(t => t + 1)}
+                className="text-xs font-semibold rounded px-2.5 py-1.5 cursor-pointer hover:opacity-90 flex-shrink-0"
+                style={{ background: 'var(--color-danger)', color: '#F2EFE9', border: 'none' }}
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
+          {!searching && !searchError && hasSearched && results.length === 0 && (
+            <p className="add-results-note">
+              No results found —{' '}
+              <button type="button" onClick={() => setShowManual(true)} className="add-results-link cursor-pointer">
+                add it manually
+              </button>
+            </p>
+          )}
+
+          {saveError && (
+            <p className="text-sm" style={{ color: 'var(--color-danger)' }}>
+              {saveError}
+            </p>
+          )}
+
+          {views.length > 0 && (
+            <>
+              <div className="add-results-eyebrow">
+                {views.length} {views.length === 1 ? 'result' : 'results'} · {tabLabel}
+                <span aria-hidden="true" />
+              </div>
+              <ul className="add-results-row">
+                {views.map((view, i) => (
+                  <ResultCard
+                    key={view.key}
+                    view={view}
+                    index={i}
+                    tab={tab}
+                    saving={saving}
+                    onAdd={() => handleSelect(view.result)}
+                  />
+                ))}
+              </ul>
+            </>
+          )}
         </div>
-      )}
-
-      {!searching && !searchError && hasSearched && results.length === 0 && (
-        <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-          No results found — try{' '}
-          <button
-            type="button"
-            onClick={() => setShowManual(true)}
-            className="cursor-pointer underline"
-            style={{ background: 'none', border: 'none', padding: 0, color: 'var(--color-accent)' }}
-          >
-            adding manually
-          </button>
-          .
-        </p>
-      )}
-
-      {saveError && (
-        <p className="text-sm" style={{ color: 'var(--color-danger)' }}>
-          {saveError}
-        </p>
-      )}
-
-      {results.length > 0 && (
-        <ul className="flex flex-col gap-2">
-          {results.map(result => {
-            let rowKey: string
-            let title: string
-            let displayYear: string | null
-            let posterSrc: string | null
-            let subtitle: string | null = null
-
-            if (isBookResult(result)) {
-              const b = result
-              rowKey      = b.key
-              title       = b.title
-              displayYear = b.first_publish_year ? String(b.first_publish_year) : null
-              posterSrc   = b.cover_i ? `https://covers.openlibrary.org/b/id/${b.cover_i}-L.jpg` : null
-              subtitle    = b.author_name?.[0] ?? null
-            } else if (isAnimeResult(result)) {
-              const a = result
-              rowKey      = String(a.id)
-              title       = a.title.english || a.title.romaji
-              displayYear = a.startDate.year ? String(a.startDate.year) : null
-              posterSrc   = a.coverImage.large ?? a.coverImage.medium ?? null
-            } else if (isMangaResult(result)) {
-              const mr = result
-              if (mr._source === 'anilist') {
-                const a = mr
-                rowKey      = String(a.id)
-                title       = a.title.english || a.title.romaji
-                displayYear = a.startDate.year ? String(a.startDate.year) : null
-                posterSrc   = a.coverImage.large ?? a.coverImage.medium ?? null
-              } else {
-                const m = mr
-                rowKey      = m.id
-                title       = m.attributes.title.en ?? Object.values(m.attributes.title)[0] ?? ''
-                displayYear = m.attributes.year ? String(m.attributes.year) : null
-                const coverRel = m.relationships.find(r => r.type === 'cover_art')
-                posterSrc   = coverRel?.attributes?.fileName
-                  ? `https://uploads.mangadex.org/covers/${m.id}/${coverRel.attributes.fileName}.256.jpg`
-                  : null
-              }
-            } else {
-              const t = result
-              rowKey      = String(t.id)
-              title       = isTV(t) ? t.name : t.title
-              const date  = isTV(t) ? t.first_air_date : t.release_date
-              displayYear = date ? date.slice(0, 4) : null
-              posterSrc   = t.poster_path ? `${TMDB_IMAGE_BASE}${t.poster_path}` : null
-            }
-
-            return (
-              <li key={rowKey}>
-                <button
-                  onClick={() => handleSelect(result)}
-                  disabled={saving}
-                  className="flex items-center gap-3 w-full text-left rounded px-3 py-2 cursor-pointer hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
-                  style={{
-                    background: 'var(--color-background)',
-                    border: '1px solid var(--color-border)',
-                    color: 'var(--color-text)',
-                  }}
-                >
-                  {posterSrc ? (
-                    <img
-                      src={posterSrc}
-                      alt=""
-                      loading="lazy"
-                      decoding="async"
-                      className="w-10 h-14 object-cover rounded flex-shrink-0"
-                    />
-                  ) : (
-                    <div
-                      className="w-10 h-14 rounded flex-shrink-0"
-                      style={{ background: 'var(--color-border)' }}
-                    />
-                  )}
-                  <div className="flex flex-col">
-                    <span className="font-medium">{title}</span>
-                    {subtitle && (
-                      <span className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                        {subtitle}
-                      </span>
-                    )}
-                    {displayYear && (
-                      <span className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                        {displayYear}
-                      </span>
-                    )}
-                  </div>
-                </button>
-              </li>
-            )
-          })}
-        </ul>
       )}
     </div>
 

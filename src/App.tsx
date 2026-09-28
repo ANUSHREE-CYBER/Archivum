@@ -29,6 +29,8 @@ function App() {
   const [activeView, setActiveView] = useState<'library' | 'stats'>('library')
   const [showAdd, setShowAdd] = useState(false)
   const [headerCollapsed, setHeaderCollapsed] = useState(false)
+  // Bumped by the "/" shortcut; MediaSearch focuses its input on each change
+  const [searchFocusSignal, setSearchFocusSignal] = useState(0)
   const mainRef = useRef<HTMLElement>(null)
   // Lifted out of EntryList so the backdrop can build its poster wall;
   // EntryList still does the fetching and mutating through the setter
@@ -37,6 +39,12 @@ function App() {
   // The backdrop's poster wall is built from the user's own posters
   const backdropPosters = useMemo(
     () => entries.flatMap(e => (e.poster_url ? [e.poster_url] : [])),
+    [entries],
+  )
+  // What's already archived, keyed the way the Add drawer's results can
+  // match it (type + title), so a result can read "In vault ✓"
+  const vaultKeys = useMemo(
+    () => new Set(entries.map(e => `${e.type}|${e.title.toLowerCase()}`)),
     [entries],
   )
 
@@ -80,6 +88,26 @@ function App() {
       return !open
     })
   }
+
+  // "/" anywhere in the vault opens the Add drawer and focuses its search.
+  // Skipped while typing (so "/" still types in inputs), while a modal is
+  // open (its focus trap owns the keyboard), on the Stats view, and with a
+  // modifier held. The handler is re-bound each render, which is fine: it
+  // only reads current state, and the listener is a single cheap closure.
+  useEffect(() => {
+    if (!session || activeView !== 'library') return
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return
+      const t = e.target as HTMLElement | null
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return
+      if (document.querySelector('[aria-modal="true"]')) return
+      e.preventDefault()
+      if (!showAdd) handleToggleAdd()
+      setSearchFocusSignal(n => n + 1)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
 
   if (loading) return null
 
@@ -191,6 +219,8 @@ function App() {
                         <MediaSearch
                           userId={session.user.id}
                           onSaved={() => setRefreshKey(k => k + 1)}
+                          vaultKeys={vaultKeys}
+                          focusSignal={searchFocusSignal}
                         />
                       </motion.div>
                     )}
