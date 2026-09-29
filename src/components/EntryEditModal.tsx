@@ -395,6 +395,13 @@ export default function EntryEditModal({ entry, onClose, onSaved, onDeleted }: P
             </div>
           </div>
         </div>
+        {/* Close. Last in the DOM on purpose: useModalFocus focuses the
+            first control on open, and that should stay the form, not this. */}
+        <button type="button" onClick={onClose} className="modal-close cursor-pointer" aria-label="Close">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+            <path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+          </svg>
+        </button>
       </div>
     </div>
   )

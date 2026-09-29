@@ -1218,6 +1218,35 @@ button.search-result-pill:disabled {
   scrollbar-color: #2A2A2A transparent;
 }
 
+/* × in the top-right corner of every modal (vault modals + landing sign-in).
+   z-index lifts it above the detail modal's blurred poster layer. */
+.modal-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 50%;
+  background: rgba(8, 8, 8, 0.45);
+  color: var(--color-text-muted);
+  transition: color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+}
+.modal-close:hover {
+  color: #E4BCC3;
+  border-color: #96555F;
+  background: rgba(183, 110, 121, 0.12);
+}
+.modal-close:focus-visible {
+  outline: 2px solid #C98A93;
+  outline-offset: 2px;
+}
+
 .modal-field {
   display: flex;
   flex-direction: column;

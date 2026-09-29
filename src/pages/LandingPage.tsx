@@ -330,6 +330,16 @@ export default function LandingPage() {
     showLoginRef.current = showLogin
   }, [showLogin])
 
+  // Esc closes the sign-in box, like the vault's modals
+  useEffect(() => {
+    if (!showLogin) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setShowLogin(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [showLogin])
+
   // The whole page's motion: one requestAnimationFrame loop that reads scroll
   // progress and the (smoothed) pointer, and writes transforms/opacity
   // straight to DOM refs. React never re-renders per frame.
@@ -637,6 +647,7 @@ export default function LandingPage() {
 
         /* Same frosted recipe as EntryEditModal / ManualEntryModal */
         .lp-auth-card {
+          position: relative;
           display: flex;
           flex-direction: column;
           gap: 16px;
@@ -1685,6 +1696,11 @@ export default function LandingPage() {
                   {loginLoading ? 'Signing in…' : 'Sign In'}
                 </button>
               </form>
+              <button type="button" onClick={() => setShowLogin(false)} className="modal-close cursor-pointer" aria-label="Close">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                  <path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                </svg>
+              </button>
             </div>
           </div>
         )}
