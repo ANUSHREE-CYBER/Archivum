@@ -30,9 +30,15 @@ const ANILIST_ONE_PIECE = 'https://s4.anilist.co/file/anilistcdn/media/anime/cov
 interface PosterDef {
   url: string
   width: number
-  // % of the viewport, as in the original flat collage
+  // % of the viewport, as in the original flat collage. Posters on the left
+  // half are anchored by `left`, posters on the right half by `right` — the
+  // widths are fixed px, so anchoring everything from the left made the
+  // right-hand posters slide off the right edge as the window narrowed while
+  // the left-hand ones stayed in frame. Mirrored anchors keep both sides
+  // sitting the same distance from their edge at any width.
   top: string
-  left: string
+  left?: string
+  right?: string
   rotate: number
   duration: number
   delay: number
@@ -46,27 +52,27 @@ interface PosterDef {
 const POSTERS: PosterDef[] = [
   { url: 'https://image.tmdb.org/t/p/w342/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg',                        width: 140, top:  '1.6%', left: '20.5%', rotate:  -8, duration: 6.0, delay: 0.0 },
   { url: imgDarkKnight,                                                                                width: 100, top:  '2.4%', left: '40.2%', rotate:   5, duration: 5.0, delay: 0.7 },
-  { url: 'https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx113415-bbBWj4pEFseh.jpg', width: 120, top:  '6.3%', left: '56.8%', rotate: -10, duration: 4.5, delay: 1.4 },
-  { url: imgFriends,                                                                                   width:  85, top: '13.8%', left: '48.8%', rotate:   7, duration: 7.0, delay: 2.1 },
-  { url: 'https://image.tmdb.org/t/p/w342/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg',                         width: 120, top: '12.4%', left: '78.9%', rotate:   9, duration: 3.5, delay: 1.8 },
-  { url: 'https://image.tmdb.org/t/p/w342/8Vt6mWEReuy4Of61Lnj5Xj704m8.jpg',                        width: 140, top: '11.8%', left: '90.4%', rotate:  11, duration: 5.5, delay: 1.2 },
+  { url: 'https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx113415-bbBWj4pEFseh.jpg', width: 120, top:  '6.3%', right: '33.8%', rotate: -10, duration: 4.5, delay: 1.4 },
+  { url: imgFriends,                                                                                   width:  85, top: '13.8%', right: '44.6%', rotate:   7, duration: 7.0, delay: 2.1 },
+  { url: 'https://image.tmdb.org/t/p/w342/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg',                         width: 120, top: '12.4%', right: '11.7%', rotate:   9, duration: 3.5, delay: 1.8 },
+  { url: 'https://image.tmdb.org/t/p/w342/8Vt6mWEReuy4Of61Lnj5Xj704m8.jpg',                        width: 140, top: '11.8%', right: '0.6%', rotate:  11, duration: 5.5, delay: 1.2 },
   { url: imgVigilante,                                                                                 width: 100, top:  '5.2%', left: '10.9%', rotate:  -6, duration: 6.5, delay: 0.4 },
   { url: ANILIST_BERSERK,                                                                              width:  85, top: '16.7%', left: '32.4%', rotate:   9, duration: 4.5, delay: 1.7 },
-  { url: 'https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx16498-C6FPmWm59CyP.jpg',  width:  85, top: '40.7%', left: '76.7%', rotate:  -9, duration: 6.0, delay: 1.5 },
-  { url: 'https://image.tmdb.org/t/p/w342/uOOtwVbSr4QDjAGIifLDwpb2Pdl.jpg',                         width:  85, top: '42.4%', left: '85.6%', rotate:   4, duration: 4.0, delay: 2.3 },
+  { url: 'https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx16498-C6FPmWm59CyP.jpg',  width:  85, top: '40.7%', right: '16.7%', rotate:  -9, duration: 6.0, delay: 1.5 },
+  { url: 'https://image.tmdb.org/t/p/w342/uOOtwVbSr4QDjAGIifLDwpb2Pdl.jpg',                         width:  85, top: '42.4%', right: '7.8%', rotate:   4, duration: 4.0, delay: 2.3 },
   { url: 'https://image.tmdb.org/t/p/w342/ztkUQFLlC19CCMYHW9o1zWhJRNq.jpg',                         width: 100, top:  '8.5%', left:  '1.6%', rotate:  -4, duration: 5.5, delay: 1.1 },
   { url: ANILIST_ONE_PIECE,                                                                            width:  85, top: '37.1%', left: '18.4%', rotate:   8, duration: 3.5, delay: 0.6 },
   { url: imgTheRookie,                                                                                  width:  85, top:   '38%', left:  '0.6%', rotate:  -7, duration: 6.0, delay: 1.9 },
-  { url: imgVincenzoLocal,                                                                              width: 100, top:   '63%', left: '80.8%', rotate:   5, duration: 4.5, delay: 0.8 },
-  { url: 'https://s4.anilist.co/file/anilistcdn/media/manga/cover/large/bx108556-NHjkz0BNJhLx.jpg', width:  85, top: '87.5%', left: '80.1%', rotate: -11, duration: 7.0, delay: 2.5 },
-  { url: 'https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx101922-PEn1CTc93blC.jpg', width:  85, top: '46.2%', left: '94.2%', rotate:   6, duration: 3.5, delay: 0.3 },
-  { url: imgAotManga,                                                                                   width:  85, top: '12.8%', left: '69.4%', rotate:  -6, duration: 3.0, delay: 2.0 },
+  { url: imgVincenzoLocal,                                                                              width: 100, top:   '63%', right: '11.4%', rotate:   5, duration: 4.5, delay: 0.8 },
+  { url: 'https://s4.anilist.co/file/anilistcdn/media/manga/cover/large/bx108556-NHjkz0BNJhLx.jpg', width:  85, top: '87.5%', right: '13.3%', rotate: -11, duration: 7.0, delay: 2.5 },
+  { url: 'https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx101922-PEn1CTc93blC.jpg', width:  85, top: '46.2%', right: '0.6%', rotate:   6, duration: 3.5, delay: 0.3 },
+  { url: imgAotManga,                                                                                   width:  85, top: '12.8%', right: '24.0%', rotate:  -6, duration: 3.0, delay: 2.0 },
   { url: imgDemonSlayer,                                                                                width: 140, top: '65.3%', left:  '1.6%', rotate:  -9, duration: 6.0, delay: 0.4 },
   { url: imgJudgeFromHell,                                                                              width: 120, top:   '36%', left:    '9%', rotate:   5, duration: 4.5, delay: 1.6 },
-  { url: imgDeathNoteManga,                                                                             width: 100, top: '69.8%', left: '49.8%', rotate:  -3, duration: 6.5, delay: 0.3 },
-  { url: imgSoloLeveling,                                                                               width:  85, top: '63.5%', left: '59.7%', rotate:   6, duration: 4.0, delay: 2.3 },
-  { url: imgTopGun,                                                                                    width: 120, top: '62.7%', left:   '70%', rotate:   9, duration: 3.0, delay: 0.6 },
-  { url: imgKillBill,                                                                                   width: 140, top: '67.9%', left: '90.1%', rotate:   8, duration: 6.5, delay: 1.1 },
+  { url: imgDeathNoteManga,                                                                             width: 100, top: '69.8%', right: '42.4%', rotate:  -3, duration: 6.5, delay: 0.3 },
+  { url: imgSoloLeveling,                                                                               width:  85, top: '63.5%', right: '33.7%', rotate:   6, duration: 4.0, delay: 2.3 },
+  { url: imgTopGun,                                                                                    width: 120, top: '62.7%', right: '20.6%', rotate:   9, duration: 3.0, delay: 0.6 },
+  { url: imgKillBill,                                                                                   width: 140, top: '67.9%', right: '0.6%', rotate:   8, duration: 6.5, delay: 1.1 },
   { url: imgSnapped,                                                                                    width: 100, top:   '60%', left:   '18%', rotate:  -6, duration: 5.2, delay: 0.3 },
   { url: imgHannibal,                                                                                   width: 120, top:   '72%', left:   '30%', rotate:   7, duration: 4.8, delay: 1.1 },
   { url: imgGhostInTheShell,                                                                            width:  85, top:   '80%', left:   '15%', rotate:  -4, duration: 6.1, delay: 0.7 },
@@ -79,7 +85,8 @@ const POSTERS: PosterDef[] = [
 const HERO_POSTERS = POSTERS.map((p, i) => ({
   ...p,
   topPct: parseFloat(p.top),
-  leftPct: parseFloat(p.left),
+  leftPct: p.left !== undefined ? parseFloat(p.left) : null,
+  rightPct: p.right !== undefined ? parseFloat(p.right) : null,
   z: -Math.round((((i * 397) % 13) / 12) * 1300) - 60,
 }))
 
@@ -365,7 +372,8 @@ export default function LandingPage() {
         // seen through the 1000px perspective, it lands exactly where it sat
         // in the flat collage — the depth only shows once the camera moves.
         const f = 1 + -p.z / 1000
-        const x = (p.leftPct / 100 * W + p.width / 2 - W / 2) * f
+        const leftPx = p.rightPct !== null ? W - (p.rightPct / 100) * W - p.width : ((p.leftPct ?? 0) / 100) * W
+        const x = (leftPx + p.width / 2 - W / 2) * f
         const y = (p.topPct / 100 * H + p.width * 0.75 - H / 2) * f
         const s = 1 + (-p.z / 1000) * 0.55
         const float = I ? Math.sin((t / 1000) / p.duration * Math.PI + p.delay) * 6 : 0
