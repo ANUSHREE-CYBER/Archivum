@@ -232,10 +232,17 @@ const smoothstep = (a: number, b: number, v: number) => {
 // How far the window has scrolled through a tall section whose content is a
 // 100vh sticky viewport: 0 as its top reaches the top of the window, 1 as its
 // bottom reaches the bottom. Every scroll-driven chapter below reads this.
-function sectionProgress(el: HTMLElement | null) {
-  if (!el) return 0
+// Also reports whether any of the section is on screen right now. The loop
+// skips a chapter's per-frame writes entirely while it's out of view — the
+// hero alone is ~30 transforms a frame, which is wasted work (and GPU
+// compositing) once you've scrolled past it.
+function sectionState(el: HTMLElement | null) {
+  if (!el) return { p: 0, visible: false }
   const r = el.getBoundingClientRect()
-  return clamp01(-r.top / (r.height - window.innerHeight))
+  return {
+    p: clamp01(-r.top / (r.height - window.innerHeight)),
+    visible: r.bottom > 0 && r.top < window.innerHeight,
+  }
 }
 
 // Scroll the window (never scrollIntoView — see the root div's overflow-x
@@ -360,13 +367,14 @@ export default function LandingPage() {
       const ny = mouse.sy / H - 0.5
 
       // ── I. Hero fly-through ──
-      const hp = sectionProgress(heroRef.current)
+      const hero = sectionState(heroRef.current)
+      const hp = hero.p
       const cam = easeOutCubic(hp) * 2100 * I
-      if (sceneRef.current) {
+      if (hero.visible && sceneRef.current) {
         sceneRef.current.style.transform =
           `translateZ(${cam.toFixed(1)}px) rotateX(${(-ny * 7 * I).toFixed(2)}deg) rotateY(${(nx * 10 * I).toFixed(2)}deg)`
       }
-      HERO_POSTERS.forEach((p, i) => {
+      if (hero.visible) HERO_POSTERS.forEach((p, i) => {
         const el = posterRefs.current[i]
         if (!el) return
         // Scale each poster's on-screen offset by its depth factor so that,
@@ -386,14 +394,14 @@ export default function LandingPage() {
         el.style.visibility = zc > 960 ? 'hidden' : 'visible'
       })
       const textFade = 1 - smoothstep(0.02, 0.2, hp)
-      if (heroTextRef.current) {
+      if (hero.visible && heroTextRef.current) {
         heroTextRef.current.style.opacity = String(textFade)
         heroTextRef.current.style.visibility = textFade < 0.02 ? 'hidden' : 'visible'
       }
-      if (heroTextInnerRef.current) {
+      if (hero.visible && heroTextInnerRef.current) {
         heroTextInnerRef.current.style.transform = `translateY(${(-hp * 120).toFixed(1)}px) scale(${(1 + hp * 0.5).toFixed(3)})`
       }
-      wordRefs.current.forEach((el, i) => {
+      if (hero.visible) wordRefs.current.forEach((el, i) => {
         if (!el) return
         const a = smoothstep(0.32 + i * 0.035, 0.4 + i * 0.035, hp) * (1 - smoothstep(0.78, 0.9, hp))
         el.style.opacity = String(a)
@@ -413,25 +421,27 @@ export default function LandingPage() {
       }
 
       // ── II. The Collection ──
-      const cp = sectionProgress(colRef.current)
+      const col = sectionState(colRef.current)
+      const cp = col.p
       const active = Math.min(6, Math.floor(cp * 7))
       if (active !== activeNow) {
         activeNow = active
         setActiveType(active)
       }
-      if (stackRef.current) {
+      if (col.visible && stackRef.current) {
         stackRef.current.style.transform = `rotateY(${(nx * 14 * I).toFixed(2)}deg) rotateX(${(-ny * 10 * I).toFixed(2)}deg)`
       }
 
       // ── III. Plate I rises into place, then its cards drop in ──
-      const pp = sectionProgress(plateSectionRef.current)
+      const plate = sectionState(plateSectionRef.current)
+      const pp = plate.p
       const e = easeOutCubic(clamp01(pp / 0.5))
-      if (plateRef.current) {
+      if (plate.visible && plateRef.current) {
         plateRef.current.style.transform = I === 0
           ? 'none'
           : `rotateX(${((1 - e) * 58).toFixed(2)}deg) translateY(${((1 - e) * 160).toFixed(1)}px) scale(${(0.8 + 0.2 * e).toFixed(3)})`
       }
-      peekRefs.current.forEach((el, k) => {
+      if (plate.visible) peekRefs.current.forEach((el, k) => {
         if (!el) return
         const ek = I === 0 ? 1 : easeOutCubic(clamp01((pp - 0.22 - k * 0.045) / 0.28))
         el.style.transform =
@@ -440,13 +450,14 @@ export default function LandingPage() {
       })
 
       // ── IV. The Shelf: scroll (and drag) turns the ring ──
-      const rp = sectionProgress(ringSectionRef.current)
+      const ring = sectionState(ringSectionRef.current)
+      const rp = ring.p
       const drag = dragRef.current
       if (!drag.on) {
         drag.off += drag.vel
         drag.vel *= 0.94
       }
-      if (ringRef.current) {
+      if (ring.visible && ringRef.current) {
         const R = Math.max(520, Math.min(760, W * 0.42))
         const n = RING_POSTERS.length
         const rot = -rp * 320 * Math.max(I, 0.3) + drag.off + (I ? (t / 1000) * 2 : 0)
@@ -850,9 +861,9 @@ export default function LandingPage() {
           align-items: center;
           justify-content: space-between;
           padding: 14px 28px;
-          background: rgba(8, 8, 8, 0.85);
-          backdrop-filter: blur(8px);
-          -webkit-backdrop-filter: blur(8px);
+          /* no backdrop-filter: everything under the nav moves every frame
+             on this page, so a blur would be recomputed constantly */
+          background: rgba(8, 8, 8, 0.92);
         }
         .lp-nav-step {
           font-size: 10px;

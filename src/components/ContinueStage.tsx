@@ -101,10 +101,12 @@ function ContinueStage({ entries, onOpen, onBump }: {
 
       const spin = spinRef.current
       const stage = stageRef.current
-      if (spin && stage && !REDUCED_MOTION) {
+      const r = spin && stage && !REDUCED_MOTION ? stage.getBoundingClientRect() : null
+      // Parallax + float only while the stage is on screen — no point
+      // re-compositing a 3D fan nobody can see
+      if (spin && r && r.bottom > 0 && r.top < window.innerHeight) {
         mouse.x += (mouse.tx - mouse.x) * 0.08
         mouse.y += (mouse.ty - mouse.y) * 0.08
-        const r = stage.getBoundingClientRect()
         // -1 … 1 as the stage's centre moves from the bottom of the window to
         // the top: tips the fan back a little as you scroll past it
         const sp = clamp(1 - (r.top + r.height / 2) / window.innerHeight, -1, 1)

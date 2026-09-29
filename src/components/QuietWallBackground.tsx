@@ -48,12 +48,26 @@ function QuietWallBackground({ posters, scrollRef }: {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
 
     let raf = 0
+    let paused = 0
+    let pausedAt = 0
     function tick(now: number) {
+      // Hold still while a modal is open: the modals' frosted glass has to
+      // re-blur whatever moves behind it, every frame. Time spent paused is
+      // subtracted so the wall resumes where it stopped instead of jumping.
+      if (document.querySelector('[aria-modal="true"]')) {
+        if (!pausedAt) pausedAt = now
+        raf = requestAnimationFrame(tick)
+        return
+      }
+      if (pausedAt) {
+        paused += now - pausedAt
+        pausedAt = 0
+      }
       // Two identical halves separated by one grid gap: the loop length is
       // half the track plus half a gap, which is exactly one half's pitch.
       const loop = (track!.offsetHeight + GAP) / 2 || 1
       const scroll = scrollRef.current?.scrollTop ?? 0
-      const off = ((now / 1000) * DRIFT_SPEED + scroll * SCROLL_COUPLING) % loop
+      const off = (((now - paused) / 1000) * DRIFT_SPEED + scroll * SCROLL_COUPLING) % loop
       track!.style.transform = `translate3d(0, ${-off}px, 0)`
       raf = requestAnimationFrame(tick)
     }
@@ -85,7 +99,6 @@ function QuietWallBackground({ posters, scrollRef }: {
             gridTemplateColumns: 'repeat(12, minmax(0, 1fr))',
             gap: GAP,
             opacity: 0.16,
-            filter: 'grayscale(1) blur(2px) brightness(0.8)',
             willChange: 'transform',
           }}
         >
@@ -96,7 +109,11 @@ function QuietWallBackground({ posters, scrollRef }: {
               alt=""
               loading="lazy"
               decoding="async"
-              style={{ display: 'block', width: '100%', aspectRatio: '2/3', objectFit: 'cover', borderRadius: 8 }}
+              // The filter lives on each tile, not the moving track: that way
+              // it's rasterised once into the track's layer, and each frame
+              // only moves the layer. On the track itself it was re-applied
+              // to a 220vw-wide surface every frame.
+              style={{ display: 'block', width: '100%', aspectRatio: '2/3', objectFit: 'cover', borderRadius: 8, filter: 'grayscale(1) blur(2px) brightness(0.8)' }}
             />
           ))}
         </div>

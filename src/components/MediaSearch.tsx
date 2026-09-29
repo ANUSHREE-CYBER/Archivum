@@ -619,8 +619,9 @@ export default function MediaSearch({ userId, onSaved, vaultKeys, focusSignal = 
     <div
       className="w-full"
       style={{
-        background: 'rgba(17, 17, 17, 0.85)',
-        backdropFilter: 'blur(12px)',
+        // No backdrop-filter: the drawer sits over the drifting Quiet wall,
+        // which would force a re-blur every frame while it's open
+        background: 'rgba(17, 17, 17, 0.94)',
         borderBottom: '1px solid var(--color-border)',
       }}
     >

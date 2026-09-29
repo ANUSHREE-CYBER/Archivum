@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import type { RefObject } from 'react'
 
 // Overlay alpha when fully dark. The landing hero starts here and fades
@@ -44,7 +44,6 @@ function useSpotlightEffect(config: SpotlightConfig = {}): RefObject<HTMLCanvasE
   const spotlightPos = useRef<Position>({ x: 0, y: 0 })
   const targetPos = useRef<Position>({ x: 0, y: 0 })
   const animationFrame = useRef<number | null>(null)
-  const [, setIsHovered] = useState(false)
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -63,26 +62,28 @@ function useSpotlightEffect(config: SpotlightConfig = {}): RefObject<HTMLCanvasE
     const handleMouseMove = (e: MouseEvent) => {
       const rect = canvas.getBoundingClientRect()
       targetPos.current = { x: e.clientX - rect.left, y: e.clientY - rect.top }
-      setIsHovered(true)
     }
 
-    const handleMouseLeave = () => {
-      setIsHovered(false)
-    }
+    // Whether the last frame drew anything. Once the overlay has faded out
+    // and the canvas is clear, there's no need to keep clearing a
+    // full-screen canvas every frame.
+    let drewLast = true
 
     const render = () => {
       spotlightPos.current.x = lerp(spotlightPos.current.x, targetPos.current.x, fadeSpeed)
       spotlightPos.current.y = lerp(spotlightPos.current.y, targetPos.current.y, fadeSpeed)
 
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
-
       const alpha = alphaRef ? alphaRef.current : SPOTLIGHT_MAX_ALPHA
       // Fully faded out: nothing to draw, but keep the loop alive so the
       // overlay can come back if the visitor scrolls up again
       if (alpha < 0.005) {
+        if (drewLast) ctx.clearRect(0, 0, canvas.width, canvas.height)
+        drewLast = false
         animationFrame.current = requestAnimationFrame(render)
         return
       }
+      drewLast = true
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
       // 1 at full dark → 0 at no overlay
       const lit = alpha / SPOTLIGHT_MAX_ALPHA
 
@@ -146,14 +147,12 @@ function useSpotlightEffect(config: SpotlightConfig = {}): RefObject<HTMLCanvasE
 
     resizeCanvas()
     window.addEventListener('resize', resizeCanvas)
-    document.addEventListener('mousemove', handleMouseMove)
-    document.addEventListener('mouseleave', handleMouseLeave)
+    document.addEventListener('mousemove', handleMouseMove, { passive: true })
     render()
 
     return () => {
       window.removeEventListener('resize', resizeCanvas)
       document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseleave', handleMouseLeave)
       if (animationFrame.current !== null) {
         cancelAnimationFrame(animationFrame.current)
       }

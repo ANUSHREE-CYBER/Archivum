@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 
 const DESKTOP_POINTER_QUERY = '(any-hover: hover) and (any-pointer: fine)'
 const EASE = 'cubic-bezier(.2,.8,.2,1)'
+const RING_FOLLOW = 0.25
 
 // What counts as "interactive" (ring grows to 46px) and what counts as a card
 // (ring grows to 64px with an OPEN label). Cards are matched by their tilt
@@ -21,8 +22,9 @@ const HIDDEN_ATTR = 'data-ring-hidden'
 // the only pointer the user sees.
 //
 // Positions are written straight to the two DOM nodes from one rAF loop, never
-// through React state — the dot lerps at 0.35 (effectively glued to the
-// pointer), the ring trails at 0.14. Only the hover *mode* (plain /
+// through React state. The dot sits exactly on the pointer; the ring trails at
+// 0.25 per frame. (The handoff's 0.35 / 0.14 read as lag in use — any easing
+// on the dot makes the pointer itself feel slow.) Only the hover *mode* (plain /
 // interactive / card) touches the DOM outside the loop, and only when it
 // changes, so the CSS size transitions have something to animate.
 function RingCursor() {
@@ -100,10 +102,10 @@ function RingCursor() {
 
     function tick() {
       setVisible(seen && inWindow && !overHidden && !document.documentElement.hasAttribute(HIDDEN_ATTR))
-      dotPos.x += (target.x - dotPos.x) * 0.35
-      dotPos.y += (target.y - dotPos.y) * 0.35
-      ringPos.x += (target.x - ringPos.x) * 0.14
-      ringPos.y += (target.y - ringPos.y) * 0.14
+      dotPos.x = target.x
+      dotPos.y = target.y
+      ringPos.x += (target.x - ringPos.x) * RING_FOLLOW
+      ringPos.y += (target.y - ringPos.y) * RING_FOLLOW
       dot!.style.transform = `translate3d(${dotPos.x}px, ${dotPos.y}px, 0)`
       ring!.style.transform = `translate3d(${ringPos.x}px, ${ringPos.y}px, 0)`
       raf = requestAnimationFrame(tick)

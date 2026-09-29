@@ -559,8 +559,14 @@ function useShelfParallax(rootRef: React.RefObject<HTMLElement | null>, active: 
     function update() {
       raf = 0
       const H = window.innerHeight
-      main!.querySelectorAll<HTMLImageElement>('.shelf-poster').forEach(img => {
-        const r = img.getBoundingClientRect()
+      // All reads first, then all writes. Interleaving them (read a rect,
+      // write a transform, read the next rect…) forces a style recalc per
+      // poster, every scroll frame. The rect is the poster's frame, not the
+      // image itself, so the parallax never measures its own transform.
+      const imgs = Array.from(main!.querySelectorAll<HTMLImageElement>('.shelf-poster'))
+      const rects = imgs.map(img => img.parentElement!.getBoundingClientRect())
+      imgs.forEach((img, i) => {
+        const r = rects[i]
         if (r.bottom < -H * 0.5 || r.top > H * 1.5) return
         const off = Math.max(-1, Math.min(1, (r.top + r.height / 2 - H / 2) / H))
         img.style.transform = `scale(1.14) translateY(${(off * -6).toFixed(2)}%)`
