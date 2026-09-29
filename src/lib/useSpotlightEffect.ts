@@ -1,7 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 
+// Overlay alpha when fully dark. The landing hero starts here and fades
+// toward 0 as the visitor scrolls in ("the lights come up").
+export const SPOTLIGHT_MAX_ALPHA = 0.85
+
 interface SpotlightConfig {
+  // Live overlay alpha, read every frame (0 = no overlay, nothing drawn).
+  // A ref rather than a value so the caller can drive it from its own rAF
+  // loop without re-rendering. Omitted = a constant SPOTLIGHT_MAX_ALPHA.
+  alphaRef?: RefObject<number>
   spotlightSize?: number
   spotlightIntensity?: number
   glowIntensity?: number
@@ -17,6 +25,7 @@ interface Position {
 
 function useSpotlightEffect(config: SpotlightConfig = {}): RefObject<HTMLCanvasElement | null> {
   const {
+    alphaRef,
     // The hole punched in the dark overlay. `spotlightIntensity` is an alpha
     // fed to a destination-out fill, so 1 = the overlay is fully erased at the
     // centre and the poster underneath reads at its true brightness.
@@ -67,13 +76,25 @@ function useSpotlightEffect(config: SpotlightConfig = {}): RefObject<HTMLCanvasE
 
       ctx.clearRect(0, 0, canvas.width, canvas.height)
 
+      const alpha = alphaRef ? alphaRef.current : SPOTLIGHT_MAX_ALPHA
+      // Fully faded out: nothing to draw, but keep the loop alive so the
+      // overlay can come back if the visitor scrolls up again
+      if (alpha < 0.005) {
+        animationFrame.current = requestAnimationFrame(render)
+        return
+      }
+      // 1 at full dark → 0 at no overlay
+      const lit = alpha / SPOTLIGHT_MAX_ALPHA
+
       // Create dark overlay
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.85)'
+      ctx.fillStyle = `rgba(0, 0, 0, ${alpha})`
       ctx.fillRect(0, 0, canvas.width, canvas.height)
 
-      // Calculate pulse effect
+      // Calculate pulse effect. As the overlay fades, the hole also widens
+      // (up to 2.5x), so the room reads as lights coming up rather than the
+      // spotlight simply going dim.
       const pulseScale = 1 + 0.1 * Math.sin((Date.now() / pulseSpeed) * Math.PI * 2)
-      const currentSpotlightSize = spotlightSize * pulseScale
+      const currentSpotlightSize = spotlightSize * pulseScale * (1 + (1 - lit) * 1.5)
 
       // Create spotlight gradient
       const gradient = ctx.createRadialGradient(
@@ -112,8 +133,8 @@ function useSpotlightEffect(config: SpotlightConfig = {}): RefObject<HTMLCanvasE
         spotlightPos.current.y,
         currentSpotlightSize * 1.35
       )
-      glowGradient.addColorStop(0, `rgba(${glowColor}, ${glowIntensity})`)
-      glowGradient.addColorStop(0.45, `rgba(${glowColor}, ${glowIntensity * 0.55})`)
+      glowGradient.addColorStop(0, `rgba(${glowColor}, ${glowIntensity * lit})`)
+      glowGradient.addColorStop(0.45, `rgba(${glowColor}, ${glowIntensity * lit * 0.55})`)
       glowGradient.addColorStop(1, 'rgba(0, 0, 0, 0)')
       ctx.fillStyle = glowGradient
       ctx.beginPath()
@@ -137,7 +158,7 @@ function useSpotlightEffect(config: SpotlightConfig = {}): RefObject<HTMLCanvasE
         cancelAnimationFrame(animationFrame.current)
       }
     }
-  }, [spotlightSize, spotlightIntensity, glowIntensity, fadeSpeed, glowColor, pulseSpeed])
+  }, [alphaRef, spotlightSize, spotlightIntensity, glowIntensity, fadeSpeed, glowColor, pulseSpeed])
 
   return canvasRef
 }

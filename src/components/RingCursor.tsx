@@ -8,9 +8,13 @@ const EASE = 'cubic-bezier(.2,.8,.2,1)'
 // layer, which is the element the pointer is actually over on a card.
 const INTERACTIVE_SELECTOR = 'button, a, input, label, [data-hover]'
 const CARD_SELECTOR = '.card-tilt, [data-cursor-card]'
-// Anything inside this attribute hides the ring — the landing hero, where the
-// spotlight canvas already *is* the cursor.
+// Two ways to hide the ring: pointing at anything inside [data-ring-hidden],
+// or the same attribute on <html>, which a page can set from its own loop.
+// The landing page does the latter while its hero spotlight is dark enough
+// to be the cursor itself (overlay alpha > 0.25) — a state that changes with
+// scroll, not pointer movement, so it's re-read every frame below.
 const HIDDEN_SELECTOR = '[data-ring-hidden]'
+const HIDDEN_ATTR = 'data-ring-hidden'
 
 // Ring + dot cursor for the whole app (vault and landing). The OS cursor stays
 // hidden by the global `* { cursor: none !important }` in index.css; this is
@@ -46,8 +50,9 @@ function RingCursor() {
     const ringPos = { x: -100, y: -100 }
     const dotPos = { x: -100, y: -100 }
     let seen = false
+    let inWindow = false
     let visible = false
-    let hidden = false
+    let overHidden = false
     let mode: 'plain' | 'hover' | 'card' = 'plain'
     let raf = 0
 
@@ -71,7 +76,7 @@ function RingCursor() {
 
     function onMove(e: PointerEvent) {
       if (e.pointerType === 'touch') {
-        setVisible(false)
+        inWindow = false
         return
       }
       target.x = e.clientX
@@ -82,18 +87,19 @@ function RingCursor() {
         ringPos.x = dotPos.x = target.x
         ringPos.y = dotPos.y = target.y
       }
+      inWindow = true
       const el = e.target instanceof Element ? e.target : null
-      hidden = !!el?.closest(HIDDEN_SELECTOR)
-      setVisible(!hidden)
+      overHidden = !!el?.closest(HIDDEN_SELECTOR)
       setMode(el?.closest(CARD_SELECTOR) ? 'card' : el?.closest(INTERACTIVE_SELECTOR) ? 'hover' : 'plain')
     }
 
     // relatedTarget null on mouseout from the document = pointer left the window
     function onOut(e: MouseEvent) {
-      if (!e.relatedTarget) setVisible(false)
+      if (!e.relatedTarget) inWindow = false
     }
 
     function tick() {
+      setVisible(seen && inWindow && !overHidden && !document.documentElement.hasAttribute(HIDDEN_ATTR))
       dotPos.x += (target.x - dotPos.x) * 0.35
       dotPos.y += (target.y - dotPos.y) * 0.35
       ringPos.x += (target.x - ringPos.x) * 0.14
