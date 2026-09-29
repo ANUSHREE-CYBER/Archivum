@@ -95,17 +95,18 @@ const TYPE_WORDS = ['Films', '·', 'Series', '·', 'K-drama', '·', 'Anime', '·
 
 // ── "The Collection" index ───────────────────────────────────────────────
 // The seven content types the vault tracks, in shelf order, each with the
-// three posters its stack shows. Numbering is derived from the array index,
-// so reordering here reorders the plate. `null` is a placeholder slot:
-// Literature and Manhwa still need real cover images (see `placeholder`).
-const COLLECTION_TYPES: { name: string; tag: string; cards: (string | null)[]; placeholder?: string }[] = [
+// posters its stack shows (up to three, fanned around the middle one).
+// Numbering is derived from the array index, so reordering here reorders the
+// plate. A type with no covers yet shows no stack — just its numeral and
+// caption — rather than placeholder cards.
+const COLLECTION_TYPES: { name: string; tag: string; cards: string[] }[] = [
   { name: 'Film',         tag: 'Movies', cards: [imgDarkKnight, imgKillBill, imgTopGun] },
   { name: 'Television',   tag: 'TV',     cards: [imgFriends, imgHannibal, imgTheRookie] },
   { name: 'Korean Drama', tag: 'Kdrama', cards: [imgVigilante, imgVincenzoLocal, imgJudgeFromHell] },
   { name: 'Anime',        tag: 'Anime',  cards: [imgGhostInTheShell, imgDemonSlayer, ANILIST_ONE_PIECE] },
-  { name: 'Literature',   tag: 'Books',  cards: [null, null, null], placeholder: 'book cover' },
+  { name: 'Literature',   tag: 'Books',  cards: [] },
   { name: 'Manga',        tag: 'Manga',  cards: [imgDeathNoteManga, imgAotManga, ANILIST_BERSERK] },
-  { name: 'Manhwa',       tag: 'Manhwa', cards: [null, imgSoloLeveling, null], placeholder: 'manhwa cover' },
+  { name: 'Manhwa',       tag: 'Manhwa', cards: [imgSoloLeveling] },
 ]
 
 // The Shelf: sixteen posters stood around a ring
@@ -1125,20 +1126,6 @@ export default function LandingPage() {
           height: 100%;
           object-fit: cover;
         }
-        /* Stand-in until real Books / Manhwa covers are added */
-        .lp-col-placeholder {
-          width: 100%;
-          height: 100%;
-          display: flex;
-          align-items: flex-end;
-          padding: 14px;
-          background: repeating-linear-gradient(135deg, #131313 0 10px, #171717 10px 20px);
-        }
-        .lp-col-placeholder span {
-          font-family: ui-monospace, Menlo, Consolas, monospace;
-          font-size: 11px;
-          color: var(--color-text-muted);
-        }
         .lp-col-caption {
           position: absolute;
           left: 0;
@@ -1533,11 +1520,12 @@ export default function LandingPage() {
                 <span className="lp-col-numeral lp-serif">{String(activeType + 1).padStart(2, '0')}</span>
                 <div ref={stackRef} className="lp-col-stack">
                   {COLLECTION_TYPES.map((type, ti) => type.cards.map((url, s) => {
-                    // Active type fans its three cards; earlier types have
-                    // flipped away upward, later ones wait below
-                    const off = s - 1
+                    // Active type fans its cards around the middle one (a
+                    // lone card sits dead centre); earlier types have flipped
+                    // away upward, later ones wait below
+                    const off = s - (type.cards.length - 1) / 2
                     const tf = ti === activeType
-                      ? `translateX(${off * 165}px) translateZ(${s === 1 ? 90 : -40}px) rotateY(${-off * 26}deg) rotateZ(${off * 4}deg)`
+                      ? `translateX(${off * 165}px) translateZ(${off === 0 ? 90 : -40}px) rotateY(${-off * 26}deg) rotateZ(${off * 4}deg)`
                       : ti < activeType
                         ? `translateY(-460px) translateZ(-320px) rotateX(70deg) rotateZ(${off * 10}deg)`
                         : `translateY(460px) translateZ(-320px) rotateX(-70deg) rotateZ(${off * -10}deg)`
@@ -1548,15 +1536,11 @@ export default function LandingPage() {
                         style={{
                           transform: `translate(-50%, -50%) ${tf}`,
                           opacity: ti === activeType ? 1 : 0,
-                          zIndex: s === 1 ? 3 : 1,
+                          zIndex: off === 0 ? 3 : 1,
                           transitionDelay: `${s * 70}ms`,
                         }}
                       >
-                        {url ? (
-                          <img src={url} alt="" loading="lazy" decoding="async" />
-                        ) : (
-                          <div className="lp-col-placeholder"><span>{type.placeholder}</span></div>
-                        )}
+                        <img src={url} alt="" loading="lazy" decoding="async" />
                       </div>
                     )
                   }))}
