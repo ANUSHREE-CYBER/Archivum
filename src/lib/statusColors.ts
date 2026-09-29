@@ -4,8 +4,9 @@
 // *traffic light*; these are five points around the rose gold hue instead, so
 // the vault reads as one palette rather than five unrelated signals.
 //
-// Consumed as raw hex rather than CSS custom properties because recharts takes
-// fill colors as JS strings, not computed styles.
+// Consumed as raw hex rather than CSS custom properties: they're applied as
+// inline styles and concatenated into box-shadow/gradient strings (the status
+// chips' glow, the Stats bar), where a var() would need color-mix() for alpha.
 export const STATUS_COLORS: Record<string, string> = {
   completed: '#C97684',
   in_progress: '#9B2F5C',

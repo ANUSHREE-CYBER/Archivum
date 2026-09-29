@@ -10,8 +10,9 @@ import type { EditableEntry } from './components/EntryEditModal'
 import RingCursor from './components/RingCursor'
 import QuietWallBackground from './components/QuietWallBackground'
 
-// Recharts (StatsDashboard's main dependency) is the largest chunk in the
-// app and most sessions never open Stats — load it only when they do.
+// Stats is still loaded on demand: most sessions never open it. Recharts is
+// gone (the charts are plain divs now), so the chunk is small, but keeping
+// the boundary costs nothing and keeps Stats' code out of the vault's bundle.
 const StatsDashboard = lazy(() => import('./components/StatsDashboard'))
 
 function StatsFallback() {
